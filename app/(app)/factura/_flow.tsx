@@ -25,32 +25,55 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
-import type { FacturaEjemplo } from "@/lib/data/aduana"
+import { getFactura, uploadFactura } from "@/lib/services/facturas"
+import type { Factura } from "@/lib/types/dims"
 import { AIBadge, Confidence } from "../_components/domain"
 
 type Step = "upload" | "processing" | "review"
 
-export function FacturaFlow({ factura }: { factura: FacturaEjemplo }) {
+export function FacturaFlow() {
   const [step, setStep] = React.useState<Step>("upload")
   const [progress, setProgress] = React.useState(0)
   const [dragOver, setDragOver] = React.useState(false)
+  const [factura, setFactura] = React.useState<Factura | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
+  // Animate the progress bar while the upload/extraction is in flight; the
+  // jump to 100% + review is driven by the real API response below.
   React.useEffect(() => {
     if (step !== "processing") return
-    if (progress >= 100) {
-      const t = setTimeout(() => setStep("review"), 300)
-      return () => clearTimeout(t)
-    }
     const t = setTimeout(
-      () => setProgress((p) => Math.min(100, p + 8 + Math.random() * 12)),
+      () => setProgress((p) => Math.min(95, p + 6 + Math.random() * 10)),
       220
     )
     return () => clearTimeout(t)
   }, [step, progress])
 
-  const start = () => {
+  const handleFile = async (file?: File | null) => {
+    if (!file) return
+    setError(null)
     setStep("processing")
     setProgress(0)
+    try {
+      let result = await uploadFactura(file)
+      let tries = 0
+      while (result.estado === "procesando" && tries < 20) {
+        await new Promise((r) => setTimeout(r, 800))
+        result = await getFactura(result.id)
+        tries++
+      }
+      if (result.estado === "error") {
+        throw new Error("La extracción falló. Intenta con otro archivo.")
+      }
+      setFactura(result)
+      setProgress(100)
+      setStep("review")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo procesar la factura.")
+      setStep("upload")
+      setProgress(0)
+    }
   }
 
   const stepIdx = step === "upload" ? 0 : step === "processing" ? 1 : 2
@@ -70,9 +93,9 @@ export function FacturaFlow({ factura }: { factura: FacturaEjemplo }) {
             onDrop={(e) => {
               e.preventDefault()
               setDragOver(false)
-              start()
+              handleFile(e.dataTransfer.files?.[0])
             }}
-            onClick={start}
+            onClick={() => inputRef.current?.click()}
             className={cn(
               "flex min-h-[280px] cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed p-8 text-center transition-all",
               dragOver
@@ -80,6 +103,13 @@ export function FacturaFlow({ factura }: { factura: FacturaEjemplo }) {
                 : "border-border bg-card"
             )}
           >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+              hidden
+              onChange={(e) => handleFile(e.target.files?.[0])}
+            />
             <div className="grid size-14 place-items-center rounded-2xl bg-primary-soft text-primary">
               <RiUploadCloud2Line className="size-6" />
             </div>
@@ -87,8 +117,13 @@ export function FacturaFlow({ factura }: { factura: FacturaEjemplo }) {
               Arrastra tu factura aquí
             </div>
             <div className="text-sm text-muted-foreground">
-              o haz clic para seleccionar · PDF, JPG, PNG · Máx 20 MB
+              o haz clic para seleccionar · PDF, JPG, PNG · Máx 10 MB
             </div>
+            {error ? (
+              <div className="mt-1 text-sm font-medium text-destructive">
+                {error}
+              </div>
+            ) : null}
             <div className="mt-2 flex gap-2">
               <Badge variant="outline">
                 <RiFileTextLine />
@@ -180,7 +215,7 @@ export function FacturaFlow({ factura }: { factura: FacturaEjemplo }) {
         </Card>
       ) : null}
 
-      {step === "review" ? <Review factura={factura} /> : null}
+      {step === "review" && factura ? <Review factura={factura} /> : null}
     </div>
   )
 }
@@ -247,7 +282,7 @@ function PlaceholderImg({ label, ratio = "3/4" }: { label: string; ratio?: strin
   )
 }
 
-function Review({ factura }: { factura: FacturaEjemplo }) {
+function Review({ factura }: { factura: Factura }) {
   return (
     <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,280px)_1fr]">
       <Card className="self-start p-4 lg:sticky lg:top-20">
@@ -280,7 +315,7 @@ function Review({ factura }: { factura: FacturaEjemplo }) {
             <div className="mb-2.5 flex items-center gap-2">
               <RiBuildingLine className="size-4 text-muted-foreground" />
               <div className="text-[13px] font-semibold">Proveedor</div>
-              <Confidence value={factura.proveedor.confidence} className="ml-auto" />
+              <Confidence value={factura.proveedor.confidence ?? 0} className="ml-auto" />
             </div>
             <div className="text-sm font-medium">{factura.proveedor.nombre}</div>
             <div className="mt-0.5 text-xs text-foreground/75">
@@ -295,7 +330,7 @@ function Review({ factura }: { factura: FacturaEjemplo }) {
               <div className="mb-2 flex items-center gap-2">
                 <RiFileTextLine className="size-4 text-muted-foreground" />
                 <div className="text-[13px] font-semibold">Factura</div>
-                <Confidence value={factura.factura.confidence} className="ml-auto" />
+                <Confidence value={factura.factura.confidence ?? 0} className="ml-auto" />
               </div>
               <div className="text-xs text-muted-foreground">Número</div>
               <div className="font-mono text-[13.5px] font-medium">
@@ -333,7 +368,7 @@ function Review({ factura }: { factura: FacturaEjemplo }) {
                 >
                   <span className="text-muted-foreground">{k}</span>
                   <span className="font-mono tabular-nums">
-                    USD {(v as number).toFixed(2)}
+                    USD {((v as number) ?? 0).toFixed(2)}
                   </span>
                 </div>
               ))}
@@ -341,7 +376,7 @@ function Review({ factura }: { factura: FacturaEjemplo }) {
               <div className="flex justify-between text-[13.5px] font-semibold">
                 <span>Valor CIF</span>
                 <span className="font-mono tabular-nums">
-                  USD {factura.totales.cif.toFixed(2)}
+                  USD {(factura.totales.cif ?? 0).toFixed(2)}
                 </span>
               </div>
             </CardContent>

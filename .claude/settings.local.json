@@ -5,7 +5,27 @@
       "WebFetch(domain:claude.ai)",
       "Bash(mkdir -p \"/d/SoftwareProjects/Dims-ai-front/design-extracted\")",
       "Bash(node -e ' *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(cd /d D:\\\\SoftwareProjects\\\\Dims-ai-front)",
+      "Bash(dir /b)",
+      "Bash(dir /b /s lib)",
+      "Bash(cat .gitignore)",
+      "Bash(ls next.config.*)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3001/api/flujo)",
+      "Bash(curl -s http://localhost:3001/api/dashboard)",
+      "Bash(curl -s http://localhost:3001/api/arancel/lineas)",
+      "Bash(curl -s \"http://localhost:3001/api/arancel/subpartidas?q=laptop\")",
+      "Bash(curl -s \"http://localhost:3001/api/arancel/subpartidas/8471.30.00.00\")",
+      "Bash(curl -s \"http://localhost:3001/api/dims?q=shenzhen\")",
+      "Bash(curl -s \"http://localhost:3001/api/dims/DIMS-2026-04823\")",
+      "Bash(curl -s -X POST \"http://localhost:3001/api/dims/DIMS-1/validate\")",
+      "Bash(curl -s -D - -o /dev/null http://localhost:3001/api/flujo)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s http://localhost:3000/flujo)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/buscar)",
+      "Bash(curl -s -o /dev/null -w \"factura %{http_code}\\\\n\" http://localhost:3000/factura)",
+      "Bash(curl -s -o /dev/null -w \"inicio %{http_code}\\\\n\" http://localhost:3000/)"
     ]
   }
 }

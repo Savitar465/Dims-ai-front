@@ -1,8 +1,8 @@
 import type { DashboardData } from "@/lib/types/dims"
 
 /**
- * Mock — replace with `fetch(`${API_URL}/dashboard`, { headers })` once the backend exists.
- * Keeping this as an async function so the page can `await` it today and stay unchanged later.
+ * The backend does not expose /dashboard yet, so this stays mocked. Swap the
+ * body for `apiFetch("/dashboard")` once the endpoint exists.
  */
 export async function getDashboardData(): Promise<DashboardData> {
   return {

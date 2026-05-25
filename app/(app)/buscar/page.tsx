@@ -1,11 +1,12 @@
 import type { Metadata } from "next"
 
-import { LINEAS, SUBPARTIDAS } from "@/lib/data/aduana"
+import { listLineas } from "@/lib/services/arancel"
 import { BuscarView } from "./_view"
 
 export const metadata: Metadata = { title: "Buscar subpartidas · DIMS AI" }
 
-export default function BuscarPage() {
+export default async function BuscarPage() {
+  const lineas = await listLineas()
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">
@@ -15,7 +16,7 @@ export default function BuscarPage() {
         Describe el producto en lenguaje natural. La IA encuentra el código
         correcto en el Arancel de Importaciones.
       </p>
-      <BuscarView subpartidas={SUBPARTIDAS} lineas={LINEAS} />
+      <BuscarView lineas={lineas} />
     </div>
   )
 }

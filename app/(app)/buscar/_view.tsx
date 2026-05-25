@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import type { Linea, Subpartida } from "@/lib/data/aduana"
+import { searchSubpartidas } from "@/lib/services/arancel"
+import type { Linea, SubpartidaMatch } from "@/lib/types/dims"
 import { AIBadge } from "../_components/domain"
 
 type LineaFilter = "todos" | Linea["id"]
@@ -31,50 +32,44 @@ const SUGGESTIONS = [
   "Horno microondas",
 ]
 
-export function BuscarView({
-  subpartidas,
-  lineas,
-}: {
-  subpartidas: Subpartida[]
-  lineas: Linea[]
-}) {
+export function BuscarView({ lineas }: { lineas: Linea[] }) {
   const [query, setQuery] = React.useState("")
   const [linea, setLinea] = React.useState<LineaFilter>("todos")
   const [selected, setSelected] = React.useState<string | null>(null)
   const [searching, setSearching] = React.useState(false)
   const [showResults, setShowResults] = React.useState(false)
+  const [results, setResults] = React.useState<SubpartidaMatch[]>([])
 
   React.useEffect(() => {
     if (!query.trim()) {
       setShowResults(false)
+      setResults([])
       return
     }
     setSearching(true)
-    const t = setTimeout(() => {
-      setSearching(false)
-      setShowResults(true)
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const res = await searchSubpartidas(
+          query,
+          linea === "todos" ? undefined : linea,
+        )
+        if (cancelled) return
+        setResults(res.resultados)
+      } catch {
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) {
+          setSearching(false)
+          setShowResults(true)
+        }
+      }
     }, 450)
-    return () => clearTimeout(t)
-  }, [query])
-
-  const results = React.useMemo(() => {
-    if (!query.trim()) return []
-    const q = query.toLowerCase()
-    let r = subpartidas.filter(
-      (s) =>
-        s.desc.toLowerCase().includes(q) ||
-        s.code.includes(q) ||
-        (q.includes("lap") && s.code.startsWith("8471")) ||
-        (q.includes("refri") && s.code.startsWith("8418")) ||
-        (q.includes("tele") && s.code.startsWith("8528")) ||
-        (q.includes("cel") && s.code.startsWith("8517.13")) ||
-        (q.includes("phone") && s.code.startsWith("8517.13")) ||
-        (q.includes("horno") && s.code.startsWith("8516.50")) ||
-        (q.includes("lava") && s.code.startsWith("8450"))
-    )
-    if (linea !== "todos") r = r.filter((s) => s.linea === linea)
-    return r
-  }, [query, linea, subpartidas])
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [query, linea])
 
   return (
     <>
