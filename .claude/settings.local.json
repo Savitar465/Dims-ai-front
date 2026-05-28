@@ -35,7 +35,11 @@
       "Skill(update-config)",
       "Bash(curl -s -m 6 http://localhost:3000/dims)",
       "Bash(curl -s -m 6 \"http://localhost:3000/dims?dims=DIMS-2026-87437\")",
-      "Bash(curl -s -m 6 \"http://localhost:3000/dims?dims=DIMS-NOPE\")"
+      "Bash(curl -s -m 6 \"http://localhost:3000/dims?dims=DIMS-NOPE\")",
+      "Read(//d/SoftwareProjects/DIMS-AI/**)",
+      "Bash(npx tsc *)",
+      "PowerShell(Push-Location \"D:\\\\SoftwareProjects\\\\DIMS-AI\"; npx tsc --noEmit -p tsconfig.json; if \\($LASTEXITCODE -eq 0\\) { Write-Output \"TSC_OK\" } else { Write-Output \"TSC_FAIL exit=$LASTEXITCODE\" }; Pop-Location)",
+      "PowerShell(Push-Location \"D:\\\\SoftwareProjects\\\\DIMS-AI\"; npx tsc --noEmit -p tsconfig.json; $back = $LASTEXITCODE; Pop-Location; Push-Location \"D:\\\\SoftwareProjects\\\\Dims-ai-front\"; npx tsc --noEmit; $front = $LASTEXITCODE; Pop-Location; Write-Output \"backend=$back front=$front\")"
     ]
   }
 }

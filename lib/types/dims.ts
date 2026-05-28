@@ -117,6 +117,10 @@ export interface FacturaItem {
   subpartida: string | null
   confidence: Confidence
   aiSuggested: boolean
+  /** true cuando la IA ya evaluó este ítem (haya o no encontrado subpartida). */
+  clasificada: boolean
+  /** Justificación devuelta por la IA en la última clasificación. */
+  razon?: string
 }
 
 export interface FacturaTotales {

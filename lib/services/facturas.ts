@@ -36,3 +36,28 @@ export function updateFacturaItem(
     { method: "PUT", body: patch },
   )
 }
+
+export function clasificarSubpartidas(facturaId: string): Promise<Factura> {
+  return apiFetch<Factura>(
+    `/facturas/${encodeURIComponent(facturaId)}/clasificar-subpartidas`,
+    { method: "POST" },
+  )
+}
+
+export interface CreateFacturaItemInput {
+  descripcion: string
+  cantidad?: number
+  unidad?: string
+  precioUnit?: number
+  subpartida?: string | null
+}
+
+export function createFacturaItem(
+  facturaId: string,
+  input: CreateFacturaItemInput,
+): Promise<FacturaItem> {
+  return apiFetch<FacturaItem>(
+    `/facturas/${encodeURIComponent(facturaId)}/items`,
+    { method: "POST", body: input },
+  )
+}

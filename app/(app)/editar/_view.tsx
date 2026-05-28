@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   RiAlertLine,
   RiArrowLeftSLine,
@@ -45,12 +46,24 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { FacturaEjemplo, FacturaItem } from "@/lib/data/aduana"
-import { updateFactura, updateFacturaItem } from "@/lib/services/facturas"
+import {
+  clasificarSubpartidas,
+  createFacturaItem,
+  updateFactura,
+  updateFacturaItem,
+} from "@/lib/services/facturas"
 import { searchSubpartidas } from "@/lib/services/arancel"
-import type { SubpartidaMatch } from "@/lib/types/dims"
+import { createDims } from "@/lib/services/dims"
+import type { Factura, SubpartidaMatch } from "@/lib/types/dims"
 import { AIBadge, Confidence } from "../_components/domain"
 
 type EditableItem = FacturaItem & { errors: string[] }
+
+// Los ítems creados desde el botón "Agregar ítem" viven solo en el cliente
+// hasta que exista un endpoint para crearlos en el backend. Marcamos su id
+// con este prefijo para saltarlos en el autosave (updateFacturaItem PUT 404).
+const NEW_ITEM_PREFIX = "_new_"
+const isLocalItem = (id: string) => id.startsWith(NEW_ITEM_PREFIX)
 
 function validate(item: FacturaItem): string[] {
   const errs: string[] = []
@@ -69,6 +82,7 @@ export function EditarView({
   factura: FacturaEjemplo
   facturaId?: string
 }) {
+  const router = useRouter()
   const [items, setItems] = React.useState<EditableItem[]>(() =>
     factura.items.map((i) => ({ ...i, errors: validate(i) }))
   )
@@ -76,6 +90,8 @@ export function EditarView({
   const [doc, setDoc] = React.useState(factura.factura)
   const [saveState, setSaveState] = React.useState<SaveState>("saved")
   const [sugFor, setSugFor] = React.useState<string | null>(null)
+  const [continuing, setContinuing] = React.useState(false)
+  const [continueError, setContinueError] = React.useState<string | null>(null)
 
   // Persist header + every item to the backend. Without a facturaId (example
   // fallback / no backend) there's nothing to save, so just report "saved".
@@ -101,17 +117,45 @@ export function EditarView({
           puertoEmbarque: doc.puertoEmbarque,
         },
       })
+      // PUT existing items
       await Promise.all(
-        items.map((it) =>
-          updateFacturaItem(facturaId, it.id, {
-            descripcion: it.descripcion,
-            cantidad: it.cantidad,
-            unidad: it.unidad,
-            precioUnit: it.precioUnit,
-            subpartida: it.subpartida,
+        items
+          .filter((it) => !isLocalItem(it.id))
+          .map((it) =>
+            updateFacturaItem(facturaId, it.id, {
+              descripcion: it.descripcion,
+              cantidad: it.cantidad,
+              unidad: it.unidad,
+              precioUnit: it.precioUnit,
+              subpartida: it.subpartida,
+            })
+          )
+      )
+
+      // POST locally-added items, then swap the temp id for the backend id.
+      const locals = items.filter((it) => isLocalItem(it.id))
+      if (locals.length > 0) {
+        const created = await Promise.all(
+          locals.map(async (it) => ({
+            localId: it.id,
+            backend: await createFacturaItem(facturaId, {
+              descripcion: it.descripcion,
+              cantidad: it.cantidad,
+              unidad: it.unidad,
+              precioUnit: it.precioUnit,
+              subpartida: it.subpartida,
+            }),
+          }))
+        )
+        setItems((arr) =>
+          arr.map((it) => {
+            const m = created.find((c) => c.localId === it.id)
+            if (!m) return it
+            return { ...m.backend, errors: validate(m.backend) }
           })
         )
-      )
+      }
+
       setSaveState("saved")
     } catch {
       setSaveState("error")
@@ -145,6 +189,28 @@ export function EditarView({
     )
   }
 
+  const addItem = () => {
+    // Crea el ítem localmente con id temporal; el autosave detectará el prefijo
+    // _new_ y lo persistirá con POST /facturas/:id/items, devolviendo el id real.
+    const id = `${NEW_ITEM_PREFIX}${Date.now()}`
+    setItems((arr) => [
+      ...arr,
+      {
+        id,
+        descripcion: "",
+        cantidad: 1,
+        unidad: "UND",
+        precioUnit: 0,
+        subtotal: 0,
+        subpartida: null,
+        confidence: 0,
+        aiSuggested: false,
+        clasificada: false,
+        errors: ["descripcion", "subpartida"],
+      },
+    ])
+  }
+
   const applySuggestion = (id: string, code: string) => {
     setItems((arr) =>
       arr.map((it) =>
@@ -159,6 +225,27 @@ export function EditarView({
       )
     )
     setSugFor(null)
+  }
+
+  const continueToDims = async () => {
+    setContinueError(null)
+    if (!facturaId) {
+      // Sin facturaId (modo fixture sin backend) — solo navega.
+      router.push("/dims")
+      return
+    }
+    setContinuing(true)
+    try {
+      // Asegura que las últimas ediciones se persistan antes de crear el DIMS.
+      await persist()
+      const dims = await createDims({ facturaId })
+      router.push(`/dims?dims=${encodeURIComponent(dims.id)}`)
+    } catch (e) {
+      setContinueError(
+        e instanceof Error ? e.message : "No se pudo crear la DIMS."
+      )
+      setContinuing(false)
+    }
   }
 
   const errorCount = items.reduce((s, i) => s + i.errors.length, 0)
@@ -337,7 +424,12 @@ export function EditarView({
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <RiBox3Line className="size-4 text-muted-foreground" />
           <div className="text-[13px] font-semibold">Ítems de la factura</div>
-          <Button variant="outline" size="sm" className="ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            onClick={addItem}
+          >
             <RiAddLine />
             Agregar ítem
           </Button>
@@ -401,28 +493,51 @@ export function EditarView({
           >
             Guardar borrador
           </Button>
-          <Button asChild disabled={errorCount > 0}>
-            <Link
-              href="/dims"
-              aria-disabled={errorCount > 0}
-              className={cn(errorCount > 0 && "pointer-events-none opacity-50")}
-            >
-              Continuar a DIMS
-              <RiArrowRightLine />
-            </Link>
+          <Button
+            onClick={() => void continueToDims()}
+            disabled={errorCount > 0 || continuing || saveState === "saving"}
+          >
+            {continuing ? (
+              <>
+                <RiLoader4Line className="animate-spin" />
+                Creando DIMS…
+              </>
+            ) : (
+              <>
+                Continuar a DIMS
+                <RiArrowRightLine />
+              </>
+            )}
           </Button>
         </div>
       </div>
+      {continueError ? (
+        <div className="mt-2 text-right text-[12.5px] text-destructive">
+          {continueError}
+        </div>
+      ) : null}
 
       <Dialog open={!!sugFor} onOpenChange={(o) => !o && setSugFor(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Sugerencias de subpartida</DialogTitle>
+            <DialogTitle>Subpartida sugerida por la IA</DialogTitle>
           </DialogHeader>
           {sugItem ? (
             <SuggestionsList
               item={sugItem}
+              facturaId={facturaId}
               onApply={(c) => applySuggestion(sugItem.id, c)}
+              onClassified={(updated) =>
+                setItems((arr) =>
+                  arr.map((it) => {
+                    const u = updated.find((x) => x.id === it.id)
+                    if (!u) return it
+                    const merged = { ...it, ...u } as EditableItem
+                    merged.errors = validate(merged)
+                    return merged
+                  })
+                )
+              }
             />
           ) : null}
         </DialogContent>
@@ -553,87 +668,210 @@ function ItemRow({
 
 function SuggestionsList({
   item,
+  facturaId,
   onApply,
+  onClassified,
 }: {
   item: EditableItem
+  facturaId?: string
   onApply: (code: string) => void
+  onClassified: (updated: Factura["items"]) => void
 }) {
-  const [matches, setMatches] = React.useState<SubpartidaMatch[]>([])
-  const [status, setStatus] = React.useState<"loading" | "done" | "error">(
-    "loading"
-  )
+  const [classifyStatus, setClassifyStatus] = React.useState<
+    "idle" | "classifying" | "error"
+  >("idle")
+  const [manualQuery, setManualQuery] = React.useState("")
+  const [manualMatches, setManualMatches] = React.useState<SubpartidaMatch[]>([])
+  const [manualStatus, setManualStatus] = React.useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle")
 
-  React.useEffect(() => {
-    let active = true
-    searchSubpartidas(item.descripcion)
-      .then((res) => {
-        if (!active) return
-        setMatches(res.resultados.slice(0, 4))
-        setStatus("done")
-      })
-      .catch(() => {
-        if (active) setStatus("error")
-      })
-    return () => {
-      active = false
+  const handleClasificar = async () => {
+    if (!facturaId) return
+    setClassifyStatus("classifying")
+    try {
+      const res = await clasificarSubpartidas(facturaId)
+      onClassified(res.items)
+      setClassifyStatus("idle")
+    } catch {
+      setClassifyStatus("error")
     }
-  }, [item.descripcion])
+  }
+
+  const handleManualSearch = async () => {
+    const q = manualQuery.trim()
+    if (!q) return
+    setManualStatus("loading")
+    try {
+      const r = await searchSubpartidas(q)
+      setManualMatches(r.resultados.slice(0, 4))
+      setManualStatus("done")
+    } catch {
+      setManualStatus("error")
+    }
+  }
 
   return (
     <div>
       <div className="mb-3.5 rounded-md bg-surface-2 p-3 text-[13px]">
         <div className="mb-0.5 text-[11.5px] text-muted-foreground">
-          Producto a clasificar:
+          Producto:
         </div>
         <div className="font-medium">{item.descripcion}</div>
       </div>
-      <div className="mb-2.5 flex items-center gap-2">
-        <RiSparkling2Line className="size-3.5 text-ai" />
-        <div className="text-[12.5px] font-medium">
-          {status === "loading"
-            ? "Buscando coincidencias por IA…"
-            : `Top ${matches.length} coincidencias por IA`}
-        </div>
-      </div>
-      {status === "loading" ? (
-        <div className="flex items-center gap-2 px-1 py-3 text-[12.5px] text-muted-foreground">
-          <RiLoader4Line className="size-3.5 animate-spin" />
-          Analizando la descripción del producto…
-        </div>
-      ) : status === "error" ? (
-        <div className="flex items-center gap-2 px-1 py-3 text-[12.5px] text-destructive">
-          <RiAlertLine className="size-3.5" />
-          No se pudieron obtener sugerencias. Intenta de nuevo.
-        </div>
-      ) : matches.length === 0 ? (
-        <div className="px-1 py-3 text-[12.5px] text-muted-foreground">
-          No se encontraron coincidencias para esta descripción.
+
+      {!item.clasificada ? (
+        isLocalItem(item.id) ? (
+          <div className="rounded-md border border-dashed p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <RiAlertLine className="size-3.5 text-warning" />
+              <div className="text-[13px] font-medium">
+                Ítem nuevo sin guardar
+              </div>
+            </div>
+            <div className="text-[12.5px] text-muted-foreground">
+              Este ítem se agregó manualmente y aún no está guardado en el
+              servidor, por lo que la IA no lo puede clasificar todavía. Usa la
+              búsqueda manual de abajo o completa la descripción y reintenta
+              después de guardar.
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <RiSparkling2Line className="size-3.5 text-ai" />
+              <div className="text-[13px] font-medium">
+                Este ítem aún no se clasificó
+              </div>
+            </div>
+            <div className="mb-3 text-[12.5px] text-muted-foreground">
+              Se clasificará junto con cualquier otro ítem pendiente en una
+              sola llamada batch a la IA.
+            </div>
+            <Button
+              onClick={handleClasificar}
+              disabled={classifyStatus === "classifying" || !facturaId}
+            >
+              {classifyStatus === "classifying" ? (
+                <>
+                  <RiLoader4Line className="size-3.5 animate-spin" />
+                  Clasificando…
+                </>
+              ) : (
+                <>
+                  <RiSparkling2Line />
+                  Clasificar con IA
+                </>
+              )}
+            </Button>
+            {classifyStatus === "error" ? (
+              <div className="mt-2 flex items-center gap-1.5 text-[12.5px] text-destructive">
+                <RiAlertLine className="size-3.5" />
+                No se pudo clasificar. Intenta de nuevo.
+              </div>
+            ) : null}
+          </div>
+        )
+      ) : item.subpartida ? (
+        <div className="rounded-md border p-3">
+          <div className="mb-1 flex items-center gap-2">
+            <RiSparkling2Line className="size-3.5 text-ai" />
+            <span className="font-mono text-[13px] font-semibold text-primary">
+              {item.subpartida}
+            </span>
+            <AIBadge title="Sugerida por la IA durante la clasificación inicial" />
+            <Confidence value={item.confidence} className="ml-auto" />
+          </div>
+          {item.razon ? (
+            <div className="text-[12.5px] text-foreground/75">{item.razon}</div>
+          ) : (
+            <div className="text-[12px] text-muted-foreground italic">
+              Sin justificación registrada.
+            </div>
+          )}
+          <div className="mt-2 flex justify-end">
+            <Button size="sm" onClick={() => onApply(item.subpartida!)}>
+              Confirmar
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {matches.map((m, i) => (
-            <div
-              key={m.code}
-              className="flex items-center gap-3 rounded-md border p-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="mb-0.5 flex items-center gap-2">
-                  <span className="font-mono text-[13px] font-semibold text-primary">
-                    {m.code}
-                  </span>
-                  {m.bestMatch ?? i === 0 ? (
-                    <AIBadge title="Mejor coincidencia" />
-                  ) : null}
-                </div>
-                <div className="text-[12.5px] text-foreground/75">{m.desc}</div>
-              </div>
-              <Button size="sm" onClick={() => onApply(m.code)}>
-                Aplicar
-              </Button>
+        <div className="rounded-md border border-warning/30 bg-warning-soft/40 p-3">
+          <div className="mb-1 flex items-center gap-2">
+            <RiAlertLine className="size-3.5 text-warning" />
+            <div className="text-[12.5px] font-medium">
+              La IA evaluó este ítem y no encontró coincidencia
             </div>
-          ))}
+          </div>
+          {item.razon ? (
+            <div className="text-[12.5px] text-foreground/75">{item.razon}</div>
+          ) : null}
+          <div className="mt-2 text-[11.5px] text-muted-foreground">
+            Edita la descripción del ítem y vuelve a clasificar, o búscala
+            manualmente abajo.
+          </div>
         </div>
       )}
+
+      <div className="mt-4 border-t pt-3">
+        <div className="mb-2 text-[12.5px] font-medium">
+          Buscar subpartida manualmente
+        </div>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Descripción o palabras clave"
+            value={manualQuery}
+            onChange={(e) => setManualQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                void handleManualSearch()
+              }
+            }}
+          />
+          <Button
+            variant="outline"
+            onClick={() => void handleManualSearch()}
+            disabled={manualStatus === "loading" || !manualQuery.trim()}
+          >
+            Buscar
+          </Button>
+        </div>
+        {manualStatus === "loading" ? (
+          <div className="mt-2 flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            <RiLoader4Line className="size-3.5 animate-spin" />
+            Buscando…
+          </div>
+        ) : manualStatus === "error" ? (
+          <div className="mt-2 flex items-center gap-1.5 text-[12.5px] text-destructive">
+            <RiAlertLine className="size-3.5" />
+            No se pudo buscar. Intenta de nuevo.
+          </div>
+        ) : manualMatches.length > 0 ? (
+          <div className="mt-2 flex flex-col gap-2">
+            {manualMatches.map((m) => (
+              <div
+                key={m.code}
+                className="flex items-center gap-3 rounded-md border p-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[12.5px] font-semibold text-primary">
+                    {m.code}
+                  </div>
+                  <div className="text-[12px] text-foreground/75">{m.desc}</div>
+                </div>
+                <Button size="sm" onClick={() => onApply(m.code)}>
+                  Aplicar
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : manualStatus === "done" ? (
+          <div className="mt-2 text-[12.5px] text-muted-foreground">
+            Sin resultados.
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }

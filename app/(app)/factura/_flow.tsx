@@ -25,22 +25,28 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
-import { getFactura, uploadFactura } from "@/lib/services/facturas"
+import {
+  clasificarSubpartidas,
+  getFactura,
+  uploadFactura,
+} from "@/lib/services/facturas"
 import type { Factura } from "@/lib/types/dims"
 import { AIBadge, Confidence } from "../_components/domain"
 
 type Step = "upload" | "processing" | "review"
+type Phase = "extracting" | "classifying"
 
 export function FacturaFlow() {
   const [step, setStep] = React.useState<Step>("upload")
+  const [phase, setPhase] = React.useState<Phase>("extracting")
   const [progress, setProgress] = React.useState(0)
   const [dragOver, setDragOver] = React.useState(false)
   const [factura, setFactura] = React.useState<Factura | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // Animate the progress bar while the upload/extraction is in flight; the
-  // jump to 100% + review is driven by the real API response below.
+  // Animate the progress bar while a phase is in flight; the jump to 100%
+  // and the phase transition are driven by the real API responses below.
   React.useEffect(() => {
     if (step !== "processing") return
     const t = setTimeout(
@@ -54,6 +60,7 @@ export function FacturaFlow() {
     if (!file) return
     setError(null)
     setStep("processing")
+    setPhase("extracting")
     setProgress(0)
     try {
       let result = await uploadFactura(file)
@@ -66,7 +73,12 @@ export function FacturaFlow() {
       if (result.estado === "error") {
         throw new Error("La extracción falló. Intenta con otro archivo.")
       }
-      setFactura(result)
+
+      setPhase("classifying")
+      setProgress(0)
+      const classified = await clasificarSubpartidas(result.id)
+
+      setFactura(classified)
       setProgress(100)
       setStep("review")
     } catch (e) {
@@ -207,17 +219,29 @@ export function FacturaFlow() {
               <RiSparkling2Line className="size-7 animate-pulse" />
             </div>
             <div className="text-[17px] font-semibold tracking-tight">
-              Procesando factura con IA
+              {phase === "extracting"
+                ? "Extrayendo datos de la factura"
+                : "Clasificando subpartidas"}
             </div>
             <div className="mt-1.5 text-sm text-muted-foreground">
-              {progress < 30 && "Detectando estructura del documento…"}
-              {progress >= 30 &&
-                progress < 60 &&
-                "Extrayendo datos del proveedor y productos…"}
-              {progress >= 60 &&
-                progress < 90 &&
-                "Clasificando subpartidas arancelarias…"}
-              {progress >= 90 && "Finalizando…"}
+              {phase === "extracting" ? (
+                <>
+                  {progress < 40 && "Detectando estructura del documento…"}
+                  {progress >= 40 &&
+                    progress < 80 &&
+                    "Extrayendo proveedor, ítems y totales…"}
+                  {progress >= 80 && "Finalizando extracción…"}
+                </>
+              ) : (
+                <>
+                  {progress < 50 &&
+                    "Consultando catálogo arancelario NANDINA…"}
+                  {progress >= 50 &&
+                    progress < 90 &&
+                    "Asignando subpartidas a cada producto…"}
+                  {progress >= 90 && "Finalizando…"}
+                </>
+              )}
             </div>
             <div className="mx-auto mt-5 max-w-xs">
               <Progress value={progress} className="h-1.5" />

@@ -69,6 +69,8 @@ export interface FacturaItem {
   subpartida: string | null
   confidence: number
   aiSuggested: boolean
+  clasificada: boolean
+  razon?: string
 }
 
 export interface FacturaEjemplo {
@@ -113,10 +115,10 @@ export const FACTURA_EJEMPLO: FacturaEjemplo = {
     confidence: 91,
   },
   items: [
-    { id: "i1", descripcion: 'Laptop 14" Intel Core i5, 8GB RAM, 512GB SSD', cantidad: 20, unidad: "UND", precioUnit: 385.0, subtotal: 7700.0, subpartida: "8471.30.00.00", confidence: 94, aiSuggested: true },
-    { id: "i2", descripcion: "Mouse inalámbrico óptico USB", cantidad: 100, unidad: "UND", precioUnit: 4.5, subtotal: 450.0, subpartida: "8471.60.00.00", confidence: 78, aiSuggested: true },
-    { id: "i3", descripcion: "Cargador USB-C 65W con cable", cantidad: 50, unidad: "UND", precioUnit: 8.2, subtotal: 410.0, subpartida: "8504.40.00.00", confidence: 62, aiSuggested: true },
-    { id: "i4", descripcion: 'Funda protectora para laptop 14"', cantidad: 30, unidad: "UND", precioUnit: 3.1, subtotal: 93.0, subpartida: null, confidence: 0, aiSuggested: false },
+    { id: "i1", descripcion: 'Laptop 14" Intel Core i5, 8GB RAM, 512GB SSD', cantidad: 20, unidad: "UND", precioUnit: 385.0, subtotal: 7700.0, subpartida: "8471.30.00.00", confidence: 94, aiSuggested: true, clasificada: true, razon: "Computadora portátil con CPU y memoria integradas." },
+    { id: "i2", descripcion: "Mouse inalámbrico óptico USB", cantidad: 100, unidad: "UND", precioUnit: 4.5, subtotal: 450.0, subpartida: "8471.60.00.00", confidence: 78, aiSuggested: true, clasificada: true, razon: "Dispositivo de entrada periférico para computadora." },
+    { id: "i3", descripcion: "Cargador USB-C 65W con cable", cantidad: 50, unidad: "UND", precioUnit: 8.2, subtotal: 410.0, subpartida: "8504.40.00.00", confidence: 62, aiSuggested: true, clasificada: true, razon: "Convertidor estático / fuente de alimentación." },
+    { id: "i4", descripcion: 'Funda protectora para laptop 14"', cantidad: 30, unidad: "UND", precioUnit: 3.1, subtotal: 93.0, subpartida: null, confidence: 0, aiSuggested: false, clasificada: true, razon: "Accesorio textil/plástico — no encaja en la sección de máquinas." },
   ],
   totales: { subtotal: 8653.0, flete: 480.0, seguro: 92.0, cif: 9225.0 },
 }
