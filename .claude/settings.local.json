@@ -25,7 +25,17 @@
       "Bash(curl -s http://localhost:3000/flujo)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/buscar)",
       "Bash(curl -s -o /dev/null -w \"factura %{http_code}\\\\n\" http://localhost:3000/factura)",
-      "Bash(curl -s -o /dev/null -w \"inicio %{http_code}\\\\n\" http://localhost:3000/)"
+      "Bash(curl -s -o /dev/null -w \"inicio %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -m 4 http://localhost:3001/api/flujo -o /dev/null -w \"flujo:%{http_code}\\\\n\")",
+      "Bash(curl -s -m 4 http://localhost:3001/api/arancel/lineas -o /dev/null -w \"lineas:%{http_code}\\\\n\")",
+      "Bash(curl -s -m 4 \"http://localhost:3001/api/dims\" -o /dev/null -w \"dims:%{http_code}\\\\n\")",
+      "Bash(curl -s -m 5 \"http://localhost:3001/api/dims\")",
+      "Bash(curl -s -m 5 \"http://localhost:3001/api/flujo\")",
+      "Bash(curl -s -m 5 \"http://localhost:3001/api/arancel/subpartidas?q=laptop\")",
+      "Skill(update-config)",
+      "Bash(curl -s -m 6 http://localhost:3000/dims)",
+      "Bash(curl -s -m 6 \"http://localhost:3000/dims?dims=DIMS-2026-87437\")",
+      "Bash(curl -s -m 6 \"http://localhost:3000/dims?dims=DIMS-NOPE\")"
     ]
   }
 }

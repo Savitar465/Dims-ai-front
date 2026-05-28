@@ -8,26 +8,8 @@ export interface DimsResumen {
   estado: DimsEstado
 }
 
-export interface DashboardStats {
-  dimsEsteMes: { value: string; sub: string }
-  tiempoPromedio: { value: string; sub: string }
-  precisionIA: { value: string; sub: string }
-  ahorroEstimado: { value: string; sub: string }
-}
-
-export interface AiInsight {
-  titulo: string
-  detalle: string
-  ctaScreen: string
-}
-
 export interface DashboardData {
-  proveedor: string
-  draftsCount: number
-  facturasExtraidas: number
-  stats: DashboardStats
   recientes: DimsResumen[]
-  insight: AiInsight | null
 }
 
 export type FlowStepId = "factura" | "editar" | "dims" | "validar" | "exportar"

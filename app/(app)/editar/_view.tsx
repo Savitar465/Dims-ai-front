@@ -45,7 +45,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { FacturaEjemplo, FacturaItem } from "@/lib/data/aduana"
-import { SUBPARTIDAS } from "@/lib/data/aduana"
+import { updateFactura, updateFacturaItem } from "@/lib/services/facturas"
+import { searchSubpartidas } from "@/lib/services/arancel"
+import type { SubpartidaMatch } from "@/lib/types/dims"
 import { AIBadge, Confidence } from "../_components/domain"
 
 type EditableItem = FacturaItem & { errors: string[] }
@@ -58,20 +60,76 @@ function validate(item: FacturaItem): string[] {
   return errs
 }
 
-export function EditarView({ factura }: { factura: FacturaEjemplo }) {
+type SaveState = "saved" | "saving" | "error"
+
+export function EditarView({
+  factura,
+  facturaId,
+}: {
+  factura: FacturaEjemplo
+  facturaId?: string
+}) {
   const [items, setItems] = React.useState<EditableItem[]>(() =>
     factura.items.map((i) => ({ ...i, errors: validate(i) }))
   )
   const [proveedor, setProveedor] = React.useState(factura.proveedor)
   const [doc, setDoc] = React.useState(factura.factura)
-  const [saved, setSaved] = React.useState(true)
+  const [saveState, setSaveState] = React.useState<SaveState>("saved")
   const [sugFor, setSugFor] = React.useState<string | null>(null)
 
+  // Persist header + every item to the backend. Without a facturaId (example
+  // fallback / no backend) there's nothing to save, so just report "saved".
+  const persist = React.useCallback(async () => {
+    if (!facturaId) {
+      setSaveState("saved")
+      return
+    }
+    setSaveState("saving")
+    try {
+      await updateFactura(facturaId, {
+        proveedor: {
+          nombre: proveedor.nombre,
+          direccion: proveedor.direccion,
+          pais: proveedor.pais,
+          rfc: proveedor.rfc,
+        },
+        factura: {
+          numero: doc.numero,
+          fecha: doc.fecha,
+          moneda: doc.moneda,
+          incoterm: doc.incoterm,
+          puertoEmbarque: doc.puertoEmbarque,
+        },
+      })
+      await Promise.all(
+        items.map((it) =>
+          updateFacturaItem(facturaId, it.id, {
+            descripcion: it.descripcion,
+            cantidad: it.cantidad,
+            unidad: it.unidad,
+            precioUnit: it.precioUnit,
+            subpartida: it.subpartida,
+          })
+        )
+      )
+      setSaveState("saved")
+    } catch {
+      setSaveState("error")
+    }
+  }, [facturaId, proveedor, doc, items])
+
+  // Debounced auto-save: skip the initial mount, then save 800ms after the
+  // last edit.
+  const mounted = React.useRef(false)
   React.useEffect(() => {
-    setSaved(false)
-    const t = setTimeout(() => setSaved(true), 700)
+    if (!mounted.current) {
+      mounted.current = true
+      return
+    }
+    setSaveState("saving")
+    const t = setTimeout(() => void persist(), 800)
     return () => clearTimeout(t)
-  }, [items, proveedor, doc])
+  }, [persist])
 
   const updateItem = (id: string, field: keyof FacturaItem, val: unknown) => {
     setItems((arr) =>
@@ -132,13 +190,17 @@ export function EditarView({ factura }: { factura: FacturaEjemplo }) {
           ) : null}
         </div>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          {saved ? (
-            <>
-              <RiCheckLine className="size-3 text-success" /> Guardado automáticamente
-            </>
-          ) : (
+          {saveState === "saving" ? (
             <>
               <RiLoader4Line className="size-3 animate-spin" /> Guardando…
+            </>
+          ) : saveState === "error" ? (
+            <span className="flex items-center gap-1 text-destructive">
+              <RiAlertLine className="size-3" /> Error al guardar
+            </span>
+          ) : (
+            <>
+              <RiCheckLine className="size-3 text-success" /> Guardado automáticamente
             </>
           )}
         </div>
@@ -332,7 +394,13 @@ export function EditarView({ factura }: { factura: FacturaEjemplo }) {
           {items.length} ítems · USD {subtotal.toFixed(2)}
         </div>
         <div className="ml-auto flex gap-2">
-          <Button variant="outline">Guardar borrador</Button>
+          <Button
+            variant="outline"
+            onClick={() => void persist()}
+            disabled={saveState === "saving"}
+          >
+            Guardar borrador
+          </Button>
           <Button asChild disabled={errorCount > 0}>
             <Link
               href="/dims"
@@ -490,22 +558,26 @@ function SuggestionsList({
   item: EditableItem
   onApply: (code: string) => void
 }) {
-  const matches = React.useMemo(() => {
-    const desc = (item.descripcion || "").toLowerCase()
-    const words = desc.split(/\s+/)
-    return SUBPARTIDAS.map((s) => {
-      let score = 0
-      words.forEach((w) => {
-        if (w.length > 3 && s.desc.toLowerCase().includes(w)) score += 1
+  const [matches, setMatches] = React.useState<SubpartidaMatch[]>([])
+  const [status, setStatus] = React.useState<"loading" | "done" | "error">(
+    "loading"
+  )
+
+  React.useEffect(() => {
+    let active = true
+    searchSubpartidas(item.descripcion)
+      .then((res) => {
+        if (!active) return
+        setMatches(res.resultados.slice(0, 4))
+        setStatus("done")
       })
-      if (desc.includes("cargador") && s.code.startsWith("8504")) score += 5
-      if (desc.includes("funda") && s.code.startsWith("4202")) score += 5
-      if (desc.includes("mouse") && s.code.startsWith("8471")) score += 5
-      return { ...s, score }
-    })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4)
-  }, [item])
+      .catch(() => {
+        if (active) setStatus("error")
+      })
+    return () => {
+      active = false
+    }
+  }, [item.descripcion])
 
   return (
     <div>
@@ -518,30 +590,50 @@ function SuggestionsList({
       <div className="mb-2.5 flex items-center gap-2">
         <RiSparkling2Line className="size-3.5 text-ai" />
         <div className="text-[12.5px] font-medium">
-          Top {matches.length} coincidencias por IA
+          {status === "loading"
+            ? "Buscando coincidencias por IA…"
+            : `Top ${matches.length} coincidencias por IA`}
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        {matches.map((m, i) => (
-          <div
-            key={m.code}
-            className="flex items-center gap-3 rounded-md border p-3"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="mb-0.5 flex items-center gap-2">
-                <span className="font-mono text-[13px] font-semibold text-primary">
-                  {m.code}
-                </span>
-                {i === 0 ? <AIBadge title="Mejor coincidencia" /> : null}
+      {status === "loading" ? (
+        <div className="flex items-center gap-2 px-1 py-3 text-[12.5px] text-muted-foreground">
+          <RiLoader4Line className="size-3.5 animate-spin" />
+          Analizando la descripción del producto…
+        </div>
+      ) : status === "error" ? (
+        <div className="flex items-center gap-2 px-1 py-3 text-[12.5px] text-destructive">
+          <RiAlertLine className="size-3.5" />
+          No se pudieron obtener sugerencias. Intenta de nuevo.
+        </div>
+      ) : matches.length === 0 ? (
+        <div className="px-1 py-3 text-[12.5px] text-muted-foreground">
+          No se encontraron coincidencias para esta descripción.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {matches.map((m, i) => (
+            <div
+              key={m.code}
+              className="flex items-center gap-3 rounded-md border p-3"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="mb-0.5 flex items-center gap-2">
+                  <span className="font-mono text-[13px] font-semibold text-primary">
+                    {m.code}
+                  </span>
+                  {m.bestMatch ?? i === 0 ? (
+                    <AIBadge title="Mejor coincidencia" />
+                  ) : null}
+                </div>
+                <div className="text-[12.5px] text-foreground/75">{m.desc}</div>
               </div>
-              <div className="text-[12.5px] text-foreground/75">{m.desc}</div>
+              <Button size="sm" onClick={() => onApply(m.code)}>
+                Aplicar
+              </Button>
             </div>
-            <Button size="sm" onClick={() => onApply(m.code)}>
-              Aplicar
-            </Button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -3,20 +3,20 @@
 import * as React from "react"
 import Link from "next/link"
 import {
-  RiUploadCloud2Line,
+  RiArrowRightLine,
+  RiBox3Line,
+  RiBuildingLine,
+  RiCameraLine,
+  RiCheckboxCircleFill,
+  RiCheckLine,
   RiFileTextLine,
   RiImage2Line,
-  RiCameraLine,
-  RiSparkling2Line,
-  RiCheckLine,
-  RiCheckboxCircleFill,
-  RiArrowRightLine,
-  RiBuildingLine,
-  RiBox3Line,
-  RiPriceTag3Line,
+  RiInformationLine,
   RiLineChartLine,
   RiLockLine,
-  RiInformationLine,
+  RiPriceTag3Line,
+  RiSparkling2Line,
+  RiUploadCloud2Line,
 } from "@remixicon/react"
 
 import { cn } from "@/lib/utils"
@@ -70,7 +70,9 @@ export function FacturaFlow() {
       setProgress(100)
       setStep("review")
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo procesar la factura.")
+      setError(
+        e instanceof Error ? e.message : "No se pudo procesar la factura."
+      )
       setStep("upload")
       setProgress(0)
     }
@@ -80,7 +82,10 @@ export function FacturaFlow() {
 
   return (
     <div>
-      <ProcessStepper labels={["Cargar", "Procesar", "Revisar"]} current={stepIdx} />
+      <ProcessStepper
+        labels={["Cargar", "Procesar", "Revisar"]}
+        current={stepIdx}
+      />
 
       {step === "upload" ? (
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -142,15 +147,35 @@ export function FacturaFlow() {
 
           <Card className="p-5">
             <CardContent className="!p-0">
-              <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="mb-3 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
                 ¿Qué extrae la IA?
               </div>
               {[
-                { icon: RiBuildingLine, t: "Datos del proveedor", s: "Nombre, dirección, país, RFC/Tax ID" },
-                { icon: RiFileTextLine, t: "Información de factura", s: "Número, fecha, moneda, incoterm" },
-                { icon: RiBox3Line, t: "Ítems detallados", s: "Descripción, cantidad, precio unitario, subtotal" },
-                { icon: RiPriceTag3Line, t: "Sugerencia de subpartida", s: "Para cada producto según descripción" },
-                { icon: RiLineChartLine, t: "Totales y flete", s: "Subtotal, flete, seguro, valor CIF" },
+                {
+                  icon: RiBuildingLine,
+                  t: "Datos del proveedor",
+                  s: "Nombre, dirección, país, RFC/Tax ID",
+                },
+                {
+                  icon: RiFileTextLine,
+                  t: "Información de factura",
+                  s: "Número, fecha, moneda, incoterm",
+                },
+                {
+                  icon: RiBox3Line,
+                  t: "Ítems detallados",
+                  s: "Descripción, cantidad, precio unitario, subtotal",
+                },
+                {
+                  icon: RiPriceTag3Line,
+                  t: "Sugerencia de subpartida",
+                  s: "Para cada producto según descripción",
+                },
+                {
+                  icon: RiLineChartLine,
+                  t: "Totales y flete",
+                  s: "Subtotal, flete, seguro, valor CIF",
+                },
               ].map((row) => (
                 <div key={row.t} className="flex items-start gap-3 py-2">
                   <div className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-2 text-foreground/70">
@@ -186,14 +211,18 @@ export function FacturaFlow() {
             </div>
             <div className="mt-1.5 text-sm text-muted-foreground">
               {progress < 30 && "Detectando estructura del documento…"}
-              {progress >= 30 && progress < 60 && "Extrayendo datos del proveedor y productos…"}
-              {progress >= 60 && progress < 90 && "Clasificando subpartidas arancelarias…"}
+              {progress >= 30 &&
+                progress < 60 &&
+                "Extrayendo datos del proveedor y productos…"}
+              {progress >= 60 &&
+                progress < 90 &&
+                "Clasificando subpartidas arancelarias…"}
               {progress >= 90 && "Finalizando…"}
             </div>
             <div className="mx-auto mt-5 max-w-xs">
               <Progress value={progress} className="h-1.5" />
             </div>
-            <div className="mt-2 font-mono text-[11px] tabular-nums text-muted-foreground">
+            <div className="mt-2 font-mono text-[11px] text-muted-foreground tabular-nums">
               {Math.floor(progress)}%
             </div>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
@@ -202,12 +231,14 @@ export function FacturaFlow() {
               </span>
               {progress > 30 ? (
                 <span className="inline-flex items-center gap-1">
-                  <RiCheckLine className="size-3 text-success" /> Tablas detectadas
+                  <RiCheckLine className="size-3 text-success" /> Tablas
+                  detectadas
                 </span>
               ) : null}
               {progress > 60 ? (
                 <span className="inline-flex items-center gap-1">
-                  <RiCheckLine className="size-3 text-success" /> 4 ítems extraídos
+                  <RiCheckLine className="size-3 text-success" /> 4 ítems
+                  extraídos
                 </span>
               ) : null}
             </div>
@@ -229,7 +260,7 @@ function ProcessStepper({
 }) {
   return (
     <Card className="!flex-row items-center gap-1 px-5 py-3">
-      <CardContent className="!flex !flex-row !items-center !gap-1 !p-0 w-full">
+      <CardContent className="!flex w-full !flex-row !items-center !gap-1 !p-0">
         {labels.map((s, i) => {
           const active = i === current
           const done = i < current
@@ -271,7 +302,13 @@ function ProcessStepper({
   )
 }
 
-function PlaceholderImg({ label, ratio = "3/4" }: { label: string; ratio?: string }) {
+function PlaceholderImg({
+  label,
+  ratio = "3/4",
+}: {
+  label: string
+  ratio?: string
+}) {
   return (
     <div
       className="grid place-items-center rounded-md border border-dashed border-border bg-[repeating-linear-gradient(135deg,var(--surface-2)_0_10px,color-mix(in_oklch,var(--surface-2)_60%,var(--background))_10px_20px)] font-mono text-[11px] text-muted-foreground"
@@ -287,14 +324,13 @@ function Review({ factura }: { factura: Factura }) {
     <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,280px)_1fr]">
       <Card className="self-start p-4 lg:sticky lg:top-20">
         <CardContent className="!p-0">
-          <div className="mb-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="mb-2.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
             Documento original
           </div>
           <PlaceholderImg label="factura.pdf · pág 1/2" ratio="3/4" />
           <div className="mt-3 text-[11px] text-muted-foreground">
-            Calidad detectada:{" "}
-            <strong className="text-success">Alta</strong> · Texto extraído al
-            96%
+            Calidad detectada: <strong className="text-success">Alta</strong> ·
+            Texto extraído al 96%
           </div>
         </CardContent>
       </Card>
@@ -315,9 +351,14 @@ function Review({ factura }: { factura: Factura }) {
             <div className="mb-2.5 flex items-center gap-2">
               <RiBuildingLine className="size-4 text-muted-foreground" />
               <div className="text-[13px] font-semibold">Proveedor</div>
-              <Confidence value={factura.proveedor.confidence ?? 0} className="ml-auto" />
+              <Confidence
+                value={factura.proveedor.confidence ?? 0}
+                className="ml-auto"
+              />
             </div>
-            <div className="text-sm font-medium">{factura.proveedor.nombre}</div>
+            <div className="text-sm font-medium">
+              {factura.proveedor.nombre}
+            </div>
             <div className="mt-0.5 text-xs text-foreground/75">
               {factura.proveedor.direccion} · {factura.proveedor.pais}
             </div>
@@ -330,7 +371,10 @@ function Review({ factura }: { factura: Factura }) {
               <div className="mb-2 flex items-center gap-2">
                 <RiFileTextLine className="size-4 text-muted-foreground" />
                 <div className="text-[13px] font-semibold">Factura</div>
-                <Confidence value={factura.factura.confidence ?? 0} className="ml-auto" />
+                <Confidence
+                  value={factura.factura.confidence ?? 0}
+                  className="ml-auto"
+                />
               </div>
               <div className="text-xs text-muted-foreground">Número</div>
               <div className="font-mono text-[13.5px] font-medium">
@@ -390,7 +434,8 @@ function Review({ factura }: { factura: Factura }) {
               {factura.items.length} ítems detectados
             </div>
             <div className="ml-auto text-[11px] text-muted-foreground">
-              {factura.items.filter((i) => i.confidence < 80).length} requieren revisión
+              {factura.items.filter((i) => i.confidence < 80).length} requieren
+              revisión
             </div>
           </div>
           {factura.items.map((item, i) => (
@@ -421,7 +466,7 @@ function Review({ factura }: { factura: Factura }) {
             En el siguiente paso podrás editar y corregir cada dato extraído.
           </div>
           <Button asChild size="lg">
-            <Link href="/editar">
+            <Link href={`/editar?factura=${encodeURIComponent(factura.id)}`}>
               Revisar y editar
               <RiArrowRightLine />
             </Link>

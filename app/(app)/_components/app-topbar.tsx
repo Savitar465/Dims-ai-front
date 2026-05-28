@@ -1,11 +1,9 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { RiArrowRightSLine, RiNotification3Line, RiQuestionLine } from "@remixicon/react"
+import { RiArrowRightSLine } from "@remixicon/react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 
 const SCREENS: Record<string, { section: string; label: string; hu?: string }> = {
   "/": { section: "Inicio", label: "Inicio" },
@@ -16,10 +14,6 @@ const SCREENS: Record<string, { section: string; label: string; hu?: string }> =
   "/dims": { section: "Flujo", label: "Generar DIMS", hu: "HU-005" },
   "/validar": { section: "Flujo", label: "Validar", hu: "HU-006" },
   "/exportar": { section: "Flujo", label: "Exportar", hu: "HU-008" },
-  "/buscar": { section: "Herramientas", label: "Subpartidas", hu: "HU-001" },
-  "/productos": { section: "Herramientas", label: "Productos recurrentes", hu: "HU-002" },
-  "/ayuda": { section: "Sistema", label: "Ayuda", hu: "HU-007" },
-  "/integraciones": { section: "Sistema", label: "Integraciones", hu: "HU-012" },
 }
 
 export function AppTopbar() {
@@ -37,17 +31,6 @@ export function AppTopbar() {
             {screen.hu}
           </Badge>
         ) : null}
-      </div>
-      <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon-sm" aria-label="Notificaciones">
-          <RiNotification3Line />
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/ayuda">
-            <RiQuestionLine />
-            Ayuda
-          </Link>
-        </Button>
       </div>
     </header>
   )

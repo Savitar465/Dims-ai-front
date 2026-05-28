@@ -2,39 +2,27 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  RiHomeLine,
-  RiFileTextLine,
-  RiUploadCloud2Line,
-  RiEditLine,
-  RiCheckboxCircleLine,
-  RiDownload2Line,
-  RiSearchLine,
-  RiStarLine,
-  RiQuestionLine,
-  RiPlugLine,
-  RiAddLine,
-  RiSettings3Line,
-} from "@remixicon/react"
+import { RiAddLine, RiFileTextLine, RiHomeLine } from "@remixicon/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import type { DraftInProgress } from "@/lib/types/dims"
 
-type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; hu?: string }
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  hu?: string
+}
 
-const FLOW_HREFS = ["/flujo", "/factura", "/editar", "/dims", "/validar", "/exportar"]
-
-const TOOL_ITEMS: NavItem[] = [
-  { href: "/buscar", label: "Subpartidas", icon: RiSearchLine, hu: "001" },
-  { href: "/productos", label: "Productos recurrentes", icon: RiStarLine, hu: "002" },
-]
-
-const SYSTEM_ITEMS: NavItem[] = [
-  { href: "/ayuda", label: "Ayuda", icon: RiQuestionLine, hu: "007" },
-  { href: "/integraciones", label: "Integraciones", icon: RiPlugLine, hu: "012" },
+const FLOW_HREFS = [
+  "/flujo",
+  "/factura",
+  "/editar",
+  "/dims",
+  "/validar",
+  "/exportar",
 ]
 
 const STEP_SUBS: Record<string, string> = {
@@ -80,16 +68,20 @@ function NavLink({
 
 export function AppSidebar({ drafts }: { drafts: DraftInProgress[] }) {
   const pathname = usePathname() || "/"
-  const inFlow = FLOW_HREFS.some((p) => pathname === p || pathname.startsWith(p + "/"))
+  const inFlow = FLOW_HREFS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  )
 
   return (
     <aside className="sticky top-0 flex h-screen w-[248px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-card px-3 py-4">
       <div className="flex items-center gap-2.5 px-2 pb-4">
-        <div className="grid size-8 place-items-center rounded-[9px] bg-gradient-to-br from-primary to-primary/70 font-serif text-lg italic text-primary-foreground shadow-inner">
+        <div className="grid size-8 place-items-center rounded-[9px] bg-gradient-to-br from-primary to-primary/70 font-serif text-lg text-primary-foreground italic shadow-inner">
           d
         </div>
         <div className="flex-1">
-          <div className="text-[15px] font-semibold tracking-tight">DIMS AI</div>
+          <div className="text-[15px] font-semibold tracking-tight">
+            DIMS AI
+          </div>
           <div className="-mt-0.5 text-[11px] text-muted-foreground">
             Aduana Nacional · BO
           </div>
@@ -120,9 +112,9 @@ export function AppSidebar({ drafts }: { drafts: DraftInProgress[] }) {
       </div>
 
       <div className="mt-3.5">
-        <div className="flex items-center justify-between px-2.5 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <div className="flex items-center justify-between px-2.5 pb-1.5 text-[10.5px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
           <span>En proceso</span>
-          <span className="font-mono text-[10px] normal-case tracking-normal">
+          <span className="font-mono text-[10px] tracking-normal normal-case">
             {drafts.length}
           </span>
         </div>
@@ -145,7 +137,7 @@ export function AppSidebar({ drafts }: { drafts: DraftInProgress[] }) {
                     <span className="truncate font-mono text-[11.5px] font-semibold">
                       {d.id.replace("DIMS-", "")}
                     </span>
-                    <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
+                    <span className="ml-auto font-mono text-[10px] text-muted-foreground tabular-nums">
                       {d.stepIdx + 1}/5
                     </span>
                   </div>
@@ -162,50 +154,7 @@ export function AppSidebar({ drafts }: { drafts: DraftInProgress[] }) {
           </div>
         )}
       </div>
-
-      <NavSection title="Herramientas" items={TOOL_ITEMS} pathname={pathname} />
-      <NavSection title="Sistema" items={SYSTEM_ITEMS} pathname={pathname} />
-
-      <div className="mt-auto flex items-center gap-2.5 border-t border-border/60 px-2 pt-3">
-        <Avatar className="size-7">
-          <AvatarFallback className="bg-gradient-to-br from-orange-400 to-rose-500 text-[11px] font-semibold text-white">
-            MQ
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-medium">María Quispe</div>
-          <div className="truncate text-[11px] text-muted-foreground">
-            Importadora · BO
-          </div>
-        </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Ajustes">
-          <RiSettings3Line />
-        </Button>
-      </div>
     </aside>
-  )
-}
-
-function NavSection({
-  title,
-  items,
-  pathname,
-}: {
-  title: string
-  items: NavItem[]
-  pathname: string
-}) {
-  return (
-    <div className="mt-3.5">
-      <div className="px-2.5 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-        {title}
-      </div>
-      <div className="flex flex-col gap-0.5">
-        {items.map((it) => (
-          <NavLink key={it.href} {...it} active={pathname === it.href} />
-        ))}
-      </div>
-    </div>
   )
 }
 

@@ -2,24 +2,19 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import {
   RiAddLine,
-  RiFileTextLine,
-  RiTimeLine,
-  RiSparklingLine,
-  RiLineChartLine,
-  RiUploadCloud2Line,
-  RiSearchLine,
-  RiStarLine,
   RiArrowRightSLine,
+  RiFileTextLine,
+  RiUploadCloud2Line,
 } from "@remixicon/react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
-  CardAction,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { getDashboardData } from "@/lib/services/dashboard"
@@ -44,18 +39,6 @@ const QUICK_START: QuickStart[] = [
     accent: true,
   },
   {
-    icon: RiSearchLine,
-    title: "Buscar subpartida arancelaria",
-    sub: "Por palabras clave del producto",
-    href: "/buscar",
-  },
-  {
-    icon: RiStarLine,
-    title: "Productos recurrentes",
-    sub: "Reutilizar clasificaciones guardadas",
-    href: "/productos",
-  },
-  {
     icon: RiFileTextLine,
     title: "Generar DIMS manualmente",
     sub: "Si no tienes factura digital",
@@ -63,7 +46,10 @@ const QUICK_START: QuickStart[] = [
   },
 ]
 
-const ESTADO_BADGE: Record<DimsEstado, { label: string; variant: "default" | "secondary" | "outline" }> = {
+const ESTADO_BADGE: Record<
+  DimsEstado,
+  { label: string; variant: "default" | "secondary" | "outline" }
+> = {
   borrador: { label: "Borrador", variant: "outline" },
   enviada: { label: "Enviada", variant: "default" },
   aprobada: { label: "Aprobada", variant: "secondary" },
@@ -75,20 +61,16 @@ export default async function InicioPage() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="font-serif text-sm italic text-muted-foreground">
-            Buen día,
+        <div className="max-w-xl">
+          <div className="font-serif text-sm text-muted-foreground italic">
+            DIMS AI
           </div>
           <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">
-            {data.proveedor}
+            Genera tu Declaración de Importación con IA
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tienes{" "}
-            <strong className="text-foreground">
-              {data.draftsCount} DIMS
-            </strong>{" "}
-            en borrador. La IA terminó de extraer {data.facturasExtraidas}{" "}
-            factura nueva.
+            Sube una factura y la IA extrae, clasifica y arma tu DIMS lista para
+            la Aduana Nacional — en cinco pasos guiados.
           </p>
         </div>
         <Button asChild size="lg">
@@ -99,20 +81,13 @@ export default async function InicioPage() {
         </Button>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="DIMS este mes" value={data.stats.dimsEsteMes.value} sub={data.stats.dimsEsteMes.sub} Icon={RiFileTextLine} />
-        <StatCard label="Tiempo promedio" value={data.stats.tiempoPromedio.value} sub={data.stats.tiempoPromedio.sub} Icon={RiTimeLine} />
-        <StatCard label="Precisión IA" value={data.stats.precisionIA.value} sub={data.stats.precisionIA.sub} Icon={RiSparklingLine} />
-        <StatCard label="Ahorro estimado" value={data.stats.ahorroEstimado.value} sub={data.stats.ahorroEstimado.sub} Icon={RiLineChartLine} />
-      </div>
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="border-b">
             <CardTitle>Empezar rápido</CardTitle>
           </CardHeader>
           <CardContent className="!p-2">
-            {QUICK_START.map((item, i) => (
+            {QUICK_START.map((item) => (
               <Link
                 key={item.title}
                 href={item.href}
@@ -129,11 +104,11 @@ export default async function InicioPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[13.5px] font-medium">{item.title}</div>
-                  <div className="text-xs text-muted-foreground">{item.sub}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.sub}
+                  </div>
                 </div>
                 <RiArrowRightSLine className="size-4 text-muted-foreground" />
-                {/* `i` only used to silence noUnused — keep semantic anchor list */}
-                <span hidden>{i}</span>
               </Link>
             ))}
           </CardContent>
@@ -158,66 +133,17 @@ export default async function InicioPage() {
           </CardContent>
         </Card>
       </div>
-
-      {data.insight ? (
-        <Card className="mt-6 flex-row items-center gap-4 border-ai/20 bg-ai-soft/60 p-5 flex-wrap">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-ai text-ai-foreground">
-            <RiSparklingLine className="size-[18px]" />
-          </div>
-          <div className="min-w-[200px] flex-1">
-            <div className="text-[13.5px] font-semibold">
-              {data.insight.titulo}
-            </div>
-            <div className="mt-0.5 text-[12.5px] text-foreground/75">
-              {data.insight.detalle}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              No, gracias
-            </Button>
-            <Button asChild size="sm">
-              <Link href={`/${data.insight.ctaScreen}`}>Crear recurrente</Link>
-            </Button>
-          </div>
-        </Card>
-      ) : null}
     </div>
   )
 }
 
-function StatCard({
-  label,
-  value,
-  sub,
-  Icon,
+function RecienteRow({
+  d,
+  showDivider,
 }: {
-  label: string
-  value: string
-  sub: string
-  Icon: React.ComponentType<{ className?: string }>
+  d: DimsResumen
+  showDivider: boolean
 }) {
-  return (
-    <Card>
-      <CardContent className="flex items-start gap-3 !py-1">
-        <div className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-muted-foreground">
-          <Icon className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11.5px] uppercase tracking-wider text-muted-foreground">
-            {label}
-          </div>
-          <div className="mt-0.5 text-xl font-semibold tabular-nums tracking-tight">
-            {value}
-          </div>
-          <div className="text-[11.5px] text-muted-foreground">{sub}</div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function RecienteRow({ d, showDivider }: { d: DimsResumen; showDivider: boolean }) {
   const badge = ESTADO_BADGE[d.estado]
   return (
     <>
@@ -233,8 +159,7 @@ function RecienteRow({ d, showDivider }: { d: DimsResumen; showDivider: boolean 
           </div>
         </div>
         <div className="text-[13px] font-medium tabular-nums">
-          USD{" "}
-          {d.valor.toLocaleString("es-BO", { minimumFractionDigits: 2 })}
+          USD {d.valor.toLocaleString("es-BO", { minimumFractionDigits: 2 })}
         </div>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
