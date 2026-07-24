@@ -175,8 +175,32 @@ export interface ValidationResult {
   issues: ValidationIssue[]
 }
 
+/** Modalidad del declarante (`tipoUsuarioDims`). */
+export type TipoUsuarioDims = "general" | "noPresencial" | "menajeDomestico"
+
+export interface DimsImportador {
+  tipoDocumento?: string
+  numeroDocumento?: string
+  nombreRazonSocial?: string
+  domicilio?: string
+}
+
+export interface DimsTransaccion {
+  valorFobUsd?: number
+  fleteDeclaradoSiNo?: boolean
+  fleteUsd?: number
+  seguroDeclaradoSiNo?: boolean
+  seguroUsd?: number
+  cantidadBultos?: number
+  pesoBruto?: number
+  pesoNeto?: number
+}
+
 export interface Dims {
+  /** Referencia interna del borrador. NO es el código DIMS: ese lo asigna SUMA. */
   id: string
+  /** Código oficial asignado por SUMA al transmitir. Ausente en borrador. */
+  codigoDims?: string
   estado: DimsEstado
   facturaId?: string
   proveedor: string
@@ -185,6 +209,16 @@ export interface Dims {
   aduanaIngreso?: string
   regimen?: string
   modalidad?: string
+  tipoUsuario?: TipoUsuarioDims
+  importador?: DimsImportador
+  departamentoDestino?: string
+  paisUltimaProcedencia?: string
+  parteRecepcionSiNo?: boolean
+  parteRecepcion?: string
+  transporteHastaFrontera?: string
+  transaccion?: DimsTransaccion
+  requiereInfAdicional?: boolean
+  infAdicional?: string
   items?: FacturaItem[]
   liquidacion?: Liquidacion
   validacion?: ValidationResult

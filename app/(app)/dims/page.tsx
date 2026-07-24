@@ -9,20 +9,9 @@ import { getSubpartida } from "@/lib/services/arancel"
 import type { Dims } from "@/lib/types/dims"
 import { ApiError } from "@/lib/api/client"
 
-import { DimsView } from "./_view"
+import { DimsView, type DimsDataShape } from "./_view"
 
-export const metadata: Metadata = { title: "Generar DIMS · DIMS AI" }
-
-const REGIMEN_LABELS: Record<string, string> = {
-  IM4: "IM4 - Importación a Consumo",
-  IM6: "IM6 - Reimportación",
-  IM7: "IM7 - Depósito Aduanero",
-}
-
-const MODALIDAD_LABELS: Record<string, string> = {
-  SIMPLIFICADA: "Simplificada",
-  GENERAL: "General",
-}
+export const metadata: Metadata = { title: "Preparar DIMS · DIMS AI" }
 
 // The backend `Dims` is generated/calculated server-side. Resolve the target
 // DIMS (explicit `?dims=` id, else the most recent draft), run `generate` so
@@ -76,7 +65,7 @@ export default async function DimsPage({
   if (!dims) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Generar DIMS</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Preparar DIMS</h1>
         <Card className="mt-6 p-10 text-center">
           <CardContent className="!p-0">
             <div className="text-[15px] font-medium">
@@ -104,17 +93,29 @@ export default async function DimsPage({
   const iva = l.iva ?? 0
   const ice = l.ice ?? 0
 
-  const dimsData = {
-    cabecera: {
-      numeroDIMS: dims.id,
-      fechaPresentacion: dims.fecha,
-      aduanaIngreso: dims.aduanaIngreso ?? "IQUIQUE-PISIGA",
-      regimen: dims.regimen
-        ? (REGIMEN_LABELS[dims.regimen] ?? dims.regimen)
-        : "IM4 - Importación a Consumo",
-      modalidad: dims.modalidad
-        ? (MODALIDAD_LABELS[dims.modalidad] ?? dims.modalidad)
-        : "Simplificada",
+  // `dims.id` es la referencia interna del borrador, NO el código DIMS: ese lo
+  // asigna SUMA al presentar la declaración. Muchos campos requeridos aún no
+  // están en el backend; se pre-llenan vacíos para que el agente los complete.
+  const tx = dims.transaccion ?? {}
+  const imp = dims.importador ?? {}
+
+  const dimsData: DimsDataShape = {
+    ref: dims.id,
+    general: {
+      tipoUsuario: dims.tipoUsuario ?? "general",
+      aduanaDespacho: dims.aduanaIngreso ?? "IQUIQUE-PISIGA",
+      aduanaTipo: "F",
+      regimen: dims.regimen ?? "41 - Importación a Consumo",
+      modalidad: dims.modalidad ?? "4101",
+      parteRecepcionSiNo: dims.parteRecepcionSiNo ?? true,
+      parteRecepcion: dims.parteRecepcion ?? "",
+    },
+    importador: {
+      tipoDocumento: imp.tipoDocumento ?? "NIT",
+      numeroDocumento: imp.numeroDocumento ?? dims.nit ?? "",
+      nombreRazonSocial: imp.nombreRazonSocial ?? "",
+      domicilio: imp.domicilio ?? "",
+      departamentoDestino: dims.departamentoDestino ?? "La Paz",
     },
     proveedor: {
       nombre: dims.proveedor ?? "",
@@ -122,12 +123,20 @@ export default async function DimsPage({
       pais: "",
       rfc: "",
     },
-    factura: { numero: dims.facturaId ?? "" },
     transporte: {
-      medio: "Terrestre",
-      pais_procedencia: "",
-      puerto_destino: "",
-      manifiesto: null as string | null,
+      paisUltimaProcedencia: dims.paisUltimaProcedencia ?? "",
+      medioHastaFrontera: dims.transporteHastaFrontera ?? "3 - Carretero",
+      manifiesto: null,
+    },
+    transaccion: {
+      valorFobUsd: tx.valorFobUsd ?? l.cif ?? 0,
+      fleteDeclaradoSiNo: tx.fleteDeclaradoSiNo ?? true,
+      fleteUsd: tx.fleteUsd ?? 0,
+      seguroDeclaradoSiNo: tx.seguroDeclaradoSiNo ?? false,
+      seguroUsd: tx.seguroUsd ?? 0,
+      cantidadBultos: tx.cantidadBultos ?? 1,
+      pesoBruto: tx.pesoBruto ?? 0,
+      pesoNeto: tx.pesoNeto ?? 0,
     },
     items: (dims.items ?? []).map((item, idx) => {
       const subtotal = item.subtotal ?? 0
@@ -141,6 +150,10 @@ export default async function DimsPage({
         ga: +((subtotal * rate) / 100).toFixed(2),
       }
     }),
+    docSop: {
+      requiereInfAdicional: dims.requiereInfAdicional ?? false,
+      infAdicional: dims.infAdicional ?? "",
+    },
     liquidacion: {
       cif: l.cif ?? 0,
       ga,

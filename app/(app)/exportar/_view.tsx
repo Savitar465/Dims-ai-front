@@ -36,11 +36,12 @@ const FORMATS: {
 const XML_PREVIEW = `<?xml version="1.0" encoding="UTF-8"?>
 <DIMS xmlns="http://aduana.gob.bo/dims/v2">
   <Cabecera>
-    <NumeroDIMS>DIMS-2026-04823</NumeroDIMS>
+    <!-- El número/código DIMS lo asigna SUMA al presentar -->
+    <NumeroDIMS>PENDIENTE-SUMA</NumeroDIMS>
     <FechaPresentacion>2026-05-14</FechaPresentacion>
-    <AduanaIngreso>030</AduanaIngreso>
-    <Regimen>IM4</Regimen>
-    <Modalidad>SIMPLIFICADA</Modalidad>
+    <AduanaDespacho>030</AduanaDespacho>
+    <Regimen>41</Regimen>
+    <Modalidad>4101</Modalidad>
     <NIT>7234182013</NIT>
   </Cabecera>
   <Proveedor>
@@ -60,7 +61,8 @@ const XML_PREVIEW = `<?xml version="1.0" encoding="UTF-8"?>
 </DIMS>`
 
 const JSON_PREVIEW = `{
-  "numero": "DIMS-2026-04823",
+  "numero": null,
+  "_nota_numero": "Lo asigna SUMA al presentar la DIMS",
   "fecha": "2026-05-14",
   "importador": { "nit": "7234182013" },
   "proveedor": { "pais": "CN", "razon_social": "Shenzhen..." },
@@ -197,7 +199,7 @@ export function ExportarView() {
                     className="grid place-items-center rounded-md border border-dashed border-border bg-[repeating-linear-gradient(135deg,var(--surface-2)_0_10px,color-mix(in_oklch,var(--surface-2)_60%,var(--background))_10px_20px)] font-mono text-[11px] text-muted-foreground"
                     style={{ aspectRatio: "3/4" }}
                   >
-                    DIMS-2026-04823.pdf · 4 páginas
+                    DIMS-borrador.pdf · 4 páginas
                   </div>
                   <div className="mt-3 flex justify-center gap-2">
                     <Button variant="outline" size="sm">

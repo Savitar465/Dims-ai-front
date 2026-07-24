@@ -40,7 +40,7 @@ const QUICK_START: QuickStart[] = [
   },
   {
     icon: RiFileTextLine,
-    title: "Generar DIMS manualmente",
+    title: "Preparar DIMS manualmente",
     sub: "Si no tienes factura digital",
     href: "/dims",
   },

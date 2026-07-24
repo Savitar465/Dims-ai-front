@@ -11,7 +11,7 @@ const SCREENS: Record<string, { section: string; label: string; hu?: string }> =
   "/flujo": { section: "Flujo", label: "Flujo de declaración" },
   "/factura": { section: "Flujo", label: "Cargar factura", hu: "HU-003" },
   "/editar": { section: "Flujo", label: "Editar datos", hu: "HU-004" },
-  "/dims": { section: "Flujo", label: "Generar DIMS", hu: "HU-005" },
+  "/dims": { section: "Flujo", label: "Preparar DIMS", hu: "HU-005" },
   "/validar": { section: "Flujo", label: "Validar", hu: "HU-006" },
   "/exportar": { section: "Flujo", label: "Exportar", hu: "HU-008" },
 }

@@ -10,9 +10,12 @@ import {
   RiBuildingLine,
   RiBox3Line,
   RiCheckLine,
+  RiFileList3Line,
   RiFileTextLine,
   RiLineChartLine,
+  RiMoneyDollarCircleLine,
   RiPriceTag3Line,
+  RiUser3Line,
   RiInformationLine,
 } from "@remixicon/react"
 
@@ -41,7 +44,15 @@ import {
 } from "@/components/ui/table"
 import { AIBadge } from "../_components/domain"
 
-type SectionId = "general" | "proveedor" | "transporte" | "items" | "liquidacion"
+type SectionId =
+  | "general"
+  | "importador"
+  | "proveedor"
+  | "transporte"
+  | "transaccion"
+  | "items"
+  | "docsop"
+  | "liquidacion"
 
 type Section = {
   id: SectionId
@@ -51,21 +62,46 @@ type Section = {
   attention?: number
 }
 
-interface DimsDataShape {
-  cabecera: {
-    numeroDIMS: string
-    fechaPresentacion: string
-    aduanaIngreso: string
+/** Tipo de usuario / modalidad del declarante (`tipoUsuarioDims`). */
+type TipoUsuario = "general" | "noPresencial" | "menajeDomestico"
+/** Tipo de aduana de despacho (`aduDepDs.tip`). Condiciona País de Última Procedencia. */
+type AduanaTipo = "A" | "I" | "P" | "F" | "Z"
+
+export interface DimsDataShape {
+  /** Referencia interna del borrador. NO es el código DIMS: ese lo asigna SUMA. */
+  ref: string
+  general: {
+    tipoUsuario: TipoUsuario
+    aduanaDespacho: string
+    aduanaTipo: AduanaTipo
     regimen: string
+    /** Código de modalidad del régimen (`modReg.cod`): 4101, 4107, 9300, … */
     modalidad: string
+    parteRecepcionSiNo: boolean
+    parteRecepcion: string
+  }
+  importador: {
+    tipoDocumento: string
+    numeroDocumento: string
+    nombreRazonSocial: string
+    domicilio: string
+    departamentoDestino: string
   }
   proveedor: { nombre: string; direccion: string; pais: string; rfc: string }
-  factura: { numero: string }
   transporte: {
-    medio: string
-    pais_procedencia: string
-    puerto_destino: string
+    paisUltimaProcedencia: string
+    medioHastaFrontera: string
     manifiesto: string | null
+  }
+  transaccion: {
+    valorFobUsd: number
+    fleteDeclaradoSiNo: boolean
+    fleteUsd: number
+    seguroDeclaradoSiNo: boolean
+    seguroUsd: number
+    cantidadBultos: number
+    pesoBruto: number
+    pesoNeto: number
   }
   items: Array<{
     id: string
@@ -75,6 +111,7 @@ interface DimsDataShape {
     subpartida: string | null
     ga: number
   }>
+  docSop: { requiereInfAdicional: boolean; infAdicional: string }
   liquidacion: {
     cif: number
     ga: number
@@ -85,11 +122,32 @@ interface DimsDataShape {
   }
 }
 
+const TIPO_USUARIO_LABEL: Record<TipoUsuario, string> = {
+  general: "Importación general",
+  noPresencial: "No presencial / Menor cuantía",
+  menajeDomestico: "Menaje doméstico",
+}
+
+// Modalidades del régimen (`modReg.cod`) con su límite de valor FOB de referencia.
+const MODALIDADES: { cod: string; label: string; limite?: number }[] = [
+  { cod: "4101", label: "4101 · Menor Cuantía General", limite: 2000 },
+  { cod: "4103", label: "4103 · Menor Cuantía Especial", limite: 3500 },
+  { cod: "4105", label: "4105 · Incentivos Ley 1391", limite: 35000 },
+  { cod: "4106", label: "4106 · Incentivos Ley 1546" },
+  { cod: "4107", label: "4107 · Abandono / Courier", limite: 1000 },
+  { cod: "9100", label: "9100 · Tráfico Postal (Ingreso)" },
+  { cod: "9200", label: "9200 · Servicio Expreso (Courier)" },
+  { cod: "9300", label: "9300 · Menaje Doméstico", limite: 35000 },
+]
+
 const SECTIONS: Section[] = [
   { id: "general", label: "Datos generales", icon: RiFileTextLine, complete: true },
+  { id: "importador", label: "Importador", icon: RiUser3Line, complete: true },
   { id: "proveedor", label: "Proveedor", icon: RiBuildingLine, complete: true },
-  { id: "transporte", label: "Transporte", icon: RiBox3Line, complete: true, attention: 1 },
+  { id: "transporte", label: "Lugares y transporte", icon: RiBox3Line, complete: true, attention: 1 },
+  { id: "transaccion", label: "Transacción y bultos", icon: RiMoneyDollarCircleLine, complete: true },
   { id: "items", label: "Ítems", icon: RiPriceTag3Line, complete: true },
+  { id: "docsop", label: "Documentos soporte", icon: RiFileList3Line, complete: true },
   { id: "liquidacion", label: "Liquidación", icon: RiLineChartLine, complete: true },
 ]
 
@@ -102,14 +160,14 @@ export function DimsView({ data }: { data: DimsDataShape }) {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Generar formulario DIMS{" "}
+            Preparar declaración DIMS{" "}
             <span className="font-mono text-base font-medium text-muted-foreground">
-              · {data.cabecera.numeroDIMS}
+              · ref. {data.ref}
             </span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pre-llenado automáticamente con los datos de la factura y arancel.
-            Revisa los campos resaltados.
+            Pre-llenada automáticamente con los datos de la factura y el arancel.
+            Revisá los campos requeridos y los resaltados.
           </p>
         </div>
         <Segmented
@@ -122,7 +180,9 @@ export function DimsView({ data }: { data: DimsDataShape }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,240px)_1fr]">
+      <SumaNotice />
+
+      <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,240px)_1fr]">
         <Card className="self-start p-2 lg:sticky lg:top-20">
           <CardContent className="!p-0">
             {SECTIONS.map((s, i) => {
@@ -250,6 +310,27 @@ export function DimsView({ data }: { data: DimsDataShape }) {
   )
 }
 
+/**
+ * El código/número DIMS no se genera acá: lo asigna el sistema SUMA de la
+ * Aduana Nacional al presentar la declaración. Este aviso lo deja explícito.
+ */
+function SumaNotice() {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary-soft px-4 py-3">
+      <RiInformationLine className="mt-0.5 size-4 shrink-0 text-primary" />
+      <div className="text-[12.5px] leading-relaxed text-foreground/80">
+        <span className="font-semibold text-foreground">
+          El código DIMS no se genera en esta plataforma.
+        </span>{" "}
+        Acá solo preparás y validás la declaración. El número oficial lo asigna
+        el sistema <strong>SUMA</strong> de la Aduana Nacional cuando presentás
+        la DIMS. Mientras tanto se identifica con la referencia interna del
+        borrador.
+      </div>
+    </div>
+  )
+}
+
 function DimsSection({
   sectionId,
   data,
@@ -258,9 +339,12 @@ function DimsSection({
   data: DimsDataShape
 }) {
   if (sectionId === "general") return <SectionGeneral data={data} />
+  if (sectionId === "importador") return <SectionImportador data={data} />
   if (sectionId === "proveedor") return <SectionProveedor data={data} />
   if (sectionId === "transporte") return <SectionTransporte data={data} />
+  if (sectionId === "transaccion") return <SectionTransaccion data={data} />
   if (sectionId === "items") return <SectionItems data={data} />
+  if (sectionId === "docsop") return <SectionDocSop data={data} />
   return <SectionLiquidacion data={data} />
 }
 
@@ -298,11 +382,13 @@ function FieldRow({
   label,
   required,
   aiFilled,
+  hint,
   children,
 }: {
   label: string
   required?: boolean
   aiFilled?: boolean
+  hint?: string
   children: React.ReactNode
 }) {
   return (
@@ -313,23 +399,50 @@ function FieldRow({
         {aiFilled ? <AIBadge /> : null}
       </Label>
       {children}
+      {hint ? (
+        <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>
+      ) : null}
     </div>
   )
 }
 
 function SectionGeneral({ data }: { data: DimsDataShape }) {
-  const d = data.cabecera
+  const g = data.general
+  const [tipoUsuario, setTipoUsuario] = React.useState<TipoUsuario>(g.tipoUsuario)
+  const [modalidad, setModalidad] = React.useState(g.modalidad)
+  const [parteSiNo, setParteSiNo] = React.useState(g.parteRecepcionSiNo)
+
+  const modInfo = MODALIDADES.find((m) => m.cod === modalidad)
+  // Menaje doméstico fija el régimen y exige Parte de Recepción (reglas del doc).
+  const menaje = tipoUsuario === "menajeDomestico"
+
   return (
     <SectionWrapper title="Datos generales" icon={RiFileTextLine}>
       <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-        <FieldRow label="Número DIMS" required>
-          <Input readOnly className="font-mono" defaultValue={d.numeroDIMS} />
+        <FieldRow
+          label="Modalidad del declarante"
+          required
+          hint="Define límites de valor y documentos soporte obligatorios."
+        >
+          <Select
+            value={tipoUsuario}
+            onValueChange={(v) => setTipoUsuario(v as TipoUsuario)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(TIPO_USUARIO_LABEL) as TipoUsuario[]).map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TIPO_USUARIO_LABEL[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldRow>
-        <FieldRow label="Fecha de presentación" required aiFilled>
-          <Input type="date" className="tabular-nums" defaultValue={d.fechaPresentacion} />
-        </FieldRow>
-        <FieldRow label="Aduana de ingreso" required>
-          <Select defaultValue={d.aduanaIngreso}>
+
+        <FieldRow label="Aduana de despacho" required>
+          <Select defaultValue={g.aduanaDespacho}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -348,16 +461,21 @@ function SectionGeneral({ data }: { data: DimsDataShape }) {
             </SelectContent>
           </Select>
         </FieldRow>
-        <FieldRow label="Régimen aduanero" required>
-          <Select defaultValue={d.regimen}>
+
+        <FieldRow
+          label="Destino / Régimen aduanero"
+          required
+          hint={menaje ? "Fijado en régimen 93 (Menaje Doméstico)." : undefined}
+        >
+          <Select defaultValue={menaje ? "93 - Menaje Doméstico" : g.regimen} disabled={menaje}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {[
-                "IM4 - Importación a Consumo",
-                "IM6 - Reimportación",
-                "IM7 - Depósito Aduanero",
+                "41 - Importación a Consumo",
+                "91 - Tráfico Postal / Courier",
+                "93 - Menaje Doméstico",
               ].map((r) => (
                 <SelectItem key={r} value={r}>
                   {r}
@@ -366,15 +484,116 @@ function SectionGeneral({ data }: { data: DimsDataShape }) {
             </SelectContent>
           </Select>
         </FieldRow>
-        <FieldRow label="Modalidad" required>
+
+        <FieldRow
+          label="Modalidad del régimen"
+          required
+          hint={
+            modInfo?.limite
+              ? `Valor FOB máximo de referencia: USD ${modInfo.limite.toLocaleString("es-BO")}.`
+              : undefined
+          }
+        >
+          <Select value={modalidad} onValueChange={setModalidad}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODALIDADES.map((m) => (
+                <SelectItem key={m.cod} value={m.cod}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FieldRow>
+
+        <FieldRow label="¿Tiene Parte de Recepción?" required>
           <Segmented
-            value={d.modalidad}
-            onChange={() => {}}
-            options={["Simplificada", "General"].map((v) => ({ value: v, label: v }))}
+            value={parteSiNo ? "si" : "no"}
+            onChange={(v) => setParteSiNo(v === "si")}
+            options={[
+              { value: "si", label: "Sí" },
+              { value: "no", label: "No" },
+            ]}
           />
         </FieldRow>
-        <FieldRow label="Importador" required aiFilled>
-          <Input defaultValue="María Quispe Mamani · NIT 7234182013" />
+
+        <FieldRow
+          label="Nº de Parte de Recepción"
+          required={parteSiNo}
+          hint={!parteSiNo ? "Se habilita cuando la DIMS tiene Parte de Recepción." : undefined}
+        >
+          <Input
+            key={String(parteSiNo)}
+            disabled={!parteSiNo}
+            placeholder={parteSiNo ? "Ej: PR-2026-001842" : "—"}
+            className="font-mono"
+            defaultValue={parteSiNo ? g.parteRecepcion : ""}
+          />
+        </FieldRow>
+      </div>
+    </SectionWrapper>
+  )
+}
+
+function SectionImportador({ data }: { data: DimsDataShape }) {
+  const im = data.importador
+  return (
+    <SectionWrapper title="Datos del importador" icon={RiUser3Line}>
+      <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+        <FieldRow label="Tipo de documento" required>
+          <Select defaultValue={im.tipoDocumento}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {["NIT", "CI - Cédula de Identidad", "CEX - Carnet de Extranjería"].map(
+                (t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
+        </FieldRow>
+        <FieldRow label="Número de documento" required>
+          <Input className="font-mono" defaultValue={im.numeroDocumento} />
+        </FieldRow>
+        <div className="md:col-span-2">
+          <FieldRow label="Nombre / Razón social" required aiFilled>
+            <Input defaultValue={im.nombreRazonSocial} />
+          </FieldRow>
+        </div>
+        <div className="md:col-span-2">
+          <FieldRow label="Domicilio legal" required>
+            <Input defaultValue={im.domicilio} />
+          </FieldRow>
+        </div>
+        <FieldRow label="Departamento de destino" required>
+          <Select defaultValue={im.departamentoDestino}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                "La Paz",
+                "Santa Cruz",
+                "Cochabamba",
+                "Oruro",
+                "Potosí",
+                "Chuquisaca",
+                "Tarija",
+                "Beni",
+                "Pando",
+              ].map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldRow>
       </div>
     </SectionWrapper>
@@ -429,16 +648,43 @@ function SectionProveedor({ data }: { data: DimsDataShape }) {
 
 function SectionTransporte({ data }: { data: DimsDataShape }) {
   const t = data.transporte
+  // País de última procedencia: habilitado/requerido solo en aduana A/I/P;
+  // en Frontera (F) o Zona Franca (Z) se asigna automáticamente.
+  const fronteriza =
+    data.general.aduanaTipo === "F" || data.general.aduanaTipo === "Z"
+
   return (
-    <SectionWrapper title="Datos de transporte" icon={RiBox3Line} attention>
+    <SectionWrapper title="Lugares y transporte" icon={RiBox3Line} attention>
       <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-        <FieldRow label="Medio de transporte" required aiFilled>
-          <Select defaultValue={t.medio}>
+        <FieldRow
+          label="País de última procedencia"
+          required={!fronteriza}
+          aiFilled={!fronteriza}
+          hint={
+            fronteriza
+              ? "Aduana de frontera/zona franca: se asigna automáticamente."
+              : "No se permite seleccionar Bolivia."
+          }
+        >
+          <Input defaultValue={t.paisUltimaProcedencia} disabled={fronteriza} />
+        </FieldRow>
+        <FieldRow
+          label="Transporte hasta la frontera"
+          required
+          aiFilled
+          hint="Régimen 41 aéreo → 4 · frontera → 3 · régimen 91 → 5 (postal/courier)."
+        >
+          <Select defaultValue={t.medioHastaFrontera}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {["Terrestre", "Aéreo", "Marítimo", "Multimodal"].map((m) => (
+              {[
+                "3 - Carretero",
+                "4 - Aéreo",
+                "5 - Postal o Courier",
+                "1 - Marítimo",
+              ].map((m) => (
                 <SelectItem key={m} value={m}>
                   {m}
                 </SelectItem>
@@ -446,21 +692,117 @@ function SectionTransporte({ data }: { data: DimsDataShape }) {
             </SelectContent>
           </Select>
         </FieldRow>
-        <FieldRow label="País de procedencia" required aiFilled>
-          <Input defaultValue={t.pais_procedencia} />
-        </FieldRow>
-        <FieldRow label="Puerto/Aduana destino" required>
-          <Input defaultValue={t.puerto_destino} />
-        </FieldRow>
-        <FieldRow label="Nº manifiesto de carga" required>
+        <div className="md:col-span-2">
+          <FieldRow label="Nº manifiesto de carga" required>
+            <Input
+              placeholder="Ej: MAN-2026-04887"
+              className="border-warning bg-warning-soft"
+              defaultValue={t.manifiesto ?? ""}
+            />
+            <div className="mt-1.5 flex items-center gap-1 text-[11.5px] text-warning">
+              <RiAlertLine className="size-3" />
+              Campo obligatorio. Búscalo en la guía de transporte.
+            </div>
+          </FieldRow>
+        </div>
+      </div>
+    </SectionWrapper>
+  )
+}
+
+function SectionTransaccion({ data }: { data: DimsDataShape }) {
+  const tx = data.transaccion
+  const [fleteSiNo, setFleteSiNo] = React.useState(tx.fleteDeclaradoSiNo)
+  const [seguroSiNo, setSeguroSiNo] = React.useState(tx.seguroDeclaradoSiNo)
+
+  return (
+    <SectionWrapper title="Información de la transacción" icon={RiMoneyDollarCircleLine}>
+      <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+        <FieldRow label="Valor FOB total (USD)" required aiFilled>
           <Input
-            placeholder="Ej: MAN-2026-04887"
-            className="border-warning bg-warning-soft"
+            type="number"
+            className="font-mono tabular-nums"
+            defaultValue={tx.valorFobUsd}
           />
-          <div className="mt-1.5 flex items-center gap-1 text-[11.5px] text-warning">
-            <RiAlertLine className="size-3" />
-            Campo obligatorio. Búscalo en la guía de transporte.
-          </div>
+        </FieldRow>
+
+        <FieldRow label="¿Flete pagado hasta lugar de importación?">
+          <Segmented
+            value={fleteSiNo ? "si" : "no"}
+            onChange={(v) => setFleteSiNo(v === "si")}
+            options={[
+              { value: "si", label: "Sí" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </FieldRow>
+        <FieldRow
+          label="Flete declarado (USD)"
+          required={fleteSiNo}
+          hint={!fleteSiNo ? "Se calcula por parámetrica cuando no está declarado." : undefined}
+        >
+          <Input
+            key={"flete-" + String(fleteSiNo)}
+            type="number"
+            disabled={!fleteSiNo}
+            className="font-mono tabular-nums"
+            defaultValue={fleteSiNo ? tx.fleteUsd : undefined}
+          />
+        </FieldRow>
+
+        <FieldRow label="¿Tiene costo de seguro?">
+          <Segmented
+            value={seguroSiNo ? "si" : "no"}
+            onChange={(v) => setSeguroSiNo(v === "si")}
+            options={[
+              { value: "si", label: "Sí" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </FieldRow>
+        <FieldRow
+          label="Seguro declarado (USD)"
+          required={seguroSiNo}
+          hint={!seguroSiNo ? "Se calcula la base imponible del seguro." : undefined}
+        >
+          <Input
+            key={"seguro-" + String(seguroSiNo)}
+            type="number"
+            disabled={!seguroSiNo}
+            className="font-mono tabular-nums"
+            defaultValue={seguroSiNo ? tx.seguroUsd : undefined}
+          />
+        </FieldRow>
+
+        <FieldRow label="Cantidad total de bultos" required hint="Debe ser mayor a 0.">
+          <Input
+            type="number"
+            min={1}
+            className="font-mono tabular-nums"
+            defaultValue={tx.cantidadBultos}
+          />
+        </FieldRow>
+        <FieldRow
+          label="Peso bruto total (kg)"
+          required
+          hint="Máx. 40 kg en modalidades courier/postal."
+        >
+          <Input
+            type="number"
+            className="font-mono tabular-nums"
+            defaultValue={tx.pesoBruto}
+          />
+        </FieldRow>
+        <FieldRow
+          label="Peso neto total (kg)"
+          required
+          hint="Debe ser menor o igual al peso bruto."
+        >
+          <Input
+            type="number"
+            className="font-mono tabular-nums"
+            defaultValue={tx.pesoNeto}
+          />
         </FieldRow>
       </div>
     </SectionWrapper>
@@ -501,6 +843,64 @@ function SectionItems({ data }: { data: DimsDataShape }) {
             ))}
           </TableBody>
         </Table>
+      </div>
+    </SectionWrapper>
+  )
+}
+
+function SectionDocSop({ data }: { data: DimsDataShape }) {
+  const [requiere, setRequiere] = React.useState(data.docSop.requiereInfAdicional)
+
+  const DOCS = [
+    { cod: "CM-003", label: "Factura Comercial" },
+    { cod: "CM-004", label: "Factura de Compra Local" },
+    { cod: "CM-007", label: "Declaración Jurada" },
+    { cod: "OT-001", label: "Parte de Recepción" },
+  ]
+
+  return (
+    <SectionWrapper title="Documentos soporte" icon={RiFileList3Line}>
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {DOCS.map((doc) => (
+          <label
+            key={doc.cod}
+            className="flex items-center gap-2.5 rounded-md border px-3 py-2 text-[13px]"
+          >
+            <input type="checkbox" className="size-3.5 accent-primary" />
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {doc.cod}
+            </span>
+            <span>{doc.label}</span>
+          </label>
+        ))}
+      </div>
+      <p className="mb-4 text-[11.5px] text-muted-foreground">
+        En modalidad no presencial es obligatorio adjuntar al menos uno de
+        CM-003, CM-004 o CM-007.
+      </p>
+      <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+        <FieldRow label="¿Requiere información adicional?">
+          <Segmented
+            value={requiere ? "si" : "no"}
+            onChange={(v) => setRequiere(v === "si")}
+            options={[
+              { value: "si", label: "Sí" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </FieldRow>
+        <div className="md:col-span-2">
+          <FieldRow
+            label="Información adicional"
+            required={requiere}
+            hint={!requiere ? "Se habilita al marcar “Sí”." : undefined}
+          >
+            <Input
+              disabled={!requiere}
+              defaultValue={requiere ? data.docSop.infAdicional : ""}
+            />
+          </FieldRow>
+        </div>
       </div>
     </SectionWrapper>
   )
@@ -552,8 +952,8 @@ function SectionLiquidacion({ data }: { data: DimsDataShape }) {
           <div className="flex items-start gap-2 text-xs text-foreground/75">
             <RiInformationLine className="mt-0.5 size-3.5 shrink-0" />
             <div>
-              Esta es una simulación. El monto definitivo se confirma al
-              presentar la DIMS en SUMA.
+              Esta es una simulación. El monto definitivo y el código DIMS se
+              confirman al presentar la declaración en SUMA.
             </div>
           </div>
         </div>
