@@ -3,12 +3,14 @@
 import * as React from "react"
 import Link from "next/link"
 import {
+  RiAlertLine,
   RiArrowRightLine,
   RiBox3Line,
   RiBuildingLine,
   RiCameraLine,
   RiCheckboxCircleFill,
   RiCheckLine,
+  RiCloseLine,
   RiFileTextLine,
   RiImage2Line,
   RiInformationLine,
@@ -16,6 +18,8 @@ import {
   RiLockLine,
   RiPriceTag3Line,
   RiSparkling2Line,
+  RiTruckLine,
+  RiUser3Line,
   RiUploadCloud2Line,
 } from "@remixicon/react"
 
@@ -31,16 +35,23 @@ import {
   uploadFactura,
 } from "@/lib/services/facturas"
 import type { Factura } from "@/lib/types/dims"
+import {
+  DOC_TIPO_LABEL,
+  VisorDocumentos,
+} from "../_components/visor-documentos"
 import { AIBadge, Confidence } from "../_components/domain"
 
 type Step = "upload" | "processing" | "review"
 type Phase = "extracting" | "classifying"
+
+const MAX_ARCHIVOS = 5
 
 export function FacturaFlow() {
   const [step, setStep] = React.useState<Step>("upload")
   const [phase, setPhase] = React.useState<Phase>("extracting")
   const [progress, setProgress] = React.useState(0)
   const [dragOver, setDragOver] = React.useState(false)
+  const [archivos, setArchivos] = React.useState<File[]>([])
   const [factura, setFactura] = React.useState<Factura | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -56,14 +67,30 @@ export function FacturaFlow() {
     return () => clearTimeout(t)
   }, [step, progress])
 
-  const handleFile = async (file?: File | null) => {
-    if (!file) return
+  const agregarArchivos = (nuevos: FileList | null) => {
+    if (!nuevos?.length) return
+    setError(null)
+    setArchivos((actuales) => {
+      // Se descartan repetidos por nombre+tamaño: arrastrar dos veces el mismo
+      // PDF duplicaría el costo de extracción sin aportar nada.
+      const clave = (f: File) => `${f.name}:${f.size}`
+      const vistos = new Set(actuales.map(clave))
+      const sumados = [...nuevos].filter((f) => !vistos.has(clave(f)))
+      return [...actuales, ...sumados].slice(0, MAX_ARCHIVOS)
+    })
+  }
+
+  const quitarArchivo = (idx: number) =>
+    setArchivos((a) => a.filter((_, i) => i !== idx))
+
+  const procesar = async () => {
+    if (archivos.length === 0) return
     setError(null)
     setStep("processing")
     setPhase("extracting")
     setProgress(0)
     try {
-      let result = await uploadFactura(file)
+      let result = await uploadFactura(archivos)
       let tries = 0
       while (result.estado === "procesando" && tries < 20) {
         await new Promise((r) => setTimeout(r, 800))
@@ -71,7 +98,9 @@ export function FacturaFlow() {
         tries++
       }
       if (result.estado === "error") {
-        throw new Error("La extracción falló. Intenta con otro archivo.")
+        throw new Error(
+          "No pudimos leer los documentos. Probá con una foto más nítida o con el PDF original."
+        )
       }
 
       setPhase("classifying")
@@ -101,92 +130,142 @@ export function FacturaFlow() {
 
       {step === "upload" ? (
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragOver(true)
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragOver(false)
-              handleFile(e.dataTransfer.files?.[0])
-            }}
-            onClick={() => inputRef.current?.click()}
-            className={cn(
-              "flex min-h-[280px] cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed p-8 text-center transition-all",
-              dragOver
-                ? "border-primary bg-primary-soft"
-                : "border-border bg-card"
-            )}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-              hidden
-              onChange={(e) => handleFile(e.target.files?.[0])}
-            />
-            <div className="grid size-14 place-items-center rounded-2xl bg-primary-soft text-primary">
-              <RiUploadCloud2Line className="size-6" />
-            </div>
-            <div className="text-base font-semibold tracking-tight">
-              Arrastra tu factura aquí
-            </div>
-            <div className="text-sm text-muted-foreground">
-              o haz clic para seleccionar · PDF, JPG, PNG · Máx 10 MB
-            </div>
+          <div>
+            <Card
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOver(true)
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragOver(false)
+                agregarArchivos(e.dataTransfer.files)
+              }}
+              onClick={() => inputRef.current?.click()}
+              className={cn(
+                "flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed p-8 text-center transition-all",
+                dragOver
+                  ? "border-primary bg-primary-soft"
+                  : "border-border bg-card"
+              )}
+            >
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                hidden
+                onChange={(e) => {
+                  agregarArchivos(e.target.files)
+                  e.target.value = ""
+                }}
+              />
+              <div className="grid size-14 place-items-center rounded-2xl bg-primary-soft text-primary">
+                <RiUploadCloud2Line className="size-6" />
+              </div>
+              <div className="text-base font-semibold tracking-tight">
+                Arrastrá acá tus documentos
+              </div>
+              <div className="text-sm text-muted-foreground">
+                o hacé clic para elegirlos · PDF, JPG o PNG · hasta{" "}
+                {MAX_ARCHIVOS} archivos de 10 MB
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Badge variant="outline">
+                  <RiFileTextLine />
+                  PDF
+                </Badge>
+                <Badge variant="outline">
+                  <RiImage2Line />
+                  JPG/PNG
+                </Badge>
+                <Badge variant="outline">
+                  <RiCameraLine />
+                  Foto
+                </Badge>
+              </div>
+            </Card>
+
+            {archivos.length > 0 ? (
+              <Card className="mt-3 p-3">
+                <CardContent className="!p-0">
+                  {archivos.map((f, i) => (
+                    <div
+                      key={`${f.name}:${f.size}`}
+                      className={cn(
+                        "flex items-center gap-2.5 py-1.5",
+                        i > 0 && "border-t border-border/60"
+                      )}
+                    >
+                      <RiFileTextLine className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-[13px]">
+                        {f.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                        {(f.size / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Quitar ${f.name}`}
+                        onClick={() => quitarArchivo(i)}
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-surface-2 hover:text-destructive"
+                      >
+                        <RiCloseLine className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
+
             {error ? (
-              <div className="mt-1 text-sm font-medium text-destructive">
+              <div className="mt-3 text-sm font-medium text-destructive">
                 {error}
               </div>
             ) : null}
-            <div className="mt-2 flex gap-2">
-              <Badge variant="outline">
-                <RiFileTextLine />
-                PDF
-              </Badge>
-              <Badge variant="outline">
-                <RiImage2Line />
-                JPG/PNG
-              </Badge>
-              <Badge variant="outline">
-                <RiCameraLine />
-                Foto
-              </Badge>
-            </div>
-          </Card>
+
+            <Button
+              size="lg"
+              className="mt-3 w-full"
+              disabled={archivos.length === 0}
+              onClick={procesar}
+            >
+              <RiSparkling2Line />
+              {archivos.length === 0
+                ? "Cargá al menos un documento"
+                : archivos.length === 1
+                  ? "Extraer datos del documento"
+                  : `Extraer datos de los ${archivos.length} documentos`}
+            </Button>
+          </div>
 
           <Card className="p-5">
             <CardContent className="!p-0">
-              <div className="mb-3 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                ¿Qué extrae la IA?
+              <div className="mb-1 text-[13px] font-semibold">
+                Cargá todos los documentos que tengas
               </div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                La factura sola no alcanza para llenar la DIMS: los pesos, los
+                bultos y el nº de guía casi nunca están en ella. Si sumás estos
+                documentos, no vas a tener que tipearlos.
+              </p>
               {[
                 {
-                  icon: RiBuildingLine,
-                  t: "Datos del proveedor",
-                  s: "Nombre, dirección, país, RFC/Tax ID",
-                },
-                {
                   icon: RiFileTextLine,
-                  t: "Información de factura",
-                  s: "Número, fecha, moneda, incoterm",
+                  t: "Factura comercial",
+                  s: "Proveedor, importador, productos, montos e Incoterm",
+                  req: true,
                 },
                 {
                   icon: RiBox3Line,
-                  t: "Ítems detallados",
-                  s: "Descripción, cantidad, precio unitario, subtotal",
+                  t: "Packing list",
+                  s: "Cantidad de bultos, peso bruto y peso neto",
                 },
                 {
-                  icon: RiPriceTag3Line,
-                  t: "Sugerencia de subpartida",
-                  s: "Para cada producto según descripción",
-                },
-                {
-                  icon: RiLineChartLine,
-                  t: "Totales y flete",
-                  s: "Subtotal, flete, seguro, valor CIF",
+                  icon: RiTruckLine,
+                  t: "Guía de transporte (AWB, B/L o carta de porte)",
+                  s: "Nº de manifiesto, país de embarque y medio de transporte",
                 },
               ].map((row) => (
                 <div key={row.t} className="flex items-start gap-3 py-2">
@@ -194,17 +273,45 @@ export function FacturaFlow() {
                     <row.icon className="size-3.5" />
                   </div>
                   <div>
-                    <div className="text-[13px] font-medium">{row.t}</div>
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium">
+                      {row.t}
+                      {row.req ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          Necesaria
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] font-normal text-muted-foreground">
+                          si la tenés
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{row.s}</div>
                   </div>
                 </div>
               ))}
               <Separator className="my-3" />
+              <div className="mb-3 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+                Además, la IA sugiere
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-2 text-foreground/70">
+                  <RiPriceTag3Line className="size-3.5" />
+                </div>
+                <div>
+                  <div className="text-[13px] font-medium">
+                    El código arancelario de cada producto
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Según su descripción, para calcular los impuestos
+                  </div>
+                </div>
+              </div>
+              <Separator className="my-3" />
               <div className="flex items-center gap-2.5 rounded-md bg-ai-soft px-3 py-2.5">
                 <RiLockLine className="size-3.5 text-ai" />
                 <div className="text-xs text-foreground/75">
-                  Tu factura se procesa con confidencialidad. Cumplimos la Ley
-                  Nº 2492 (CTB).
+                  Tus documentos se procesan con confidencialidad. Cumplimos la
+                  Ley Nº 2492 (CTB).
                 </div>
               </div>
             </CardContent>
@@ -226,11 +333,11 @@ export function FacturaFlow() {
             <div className="mt-1.5 text-sm text-muted-foreground">
               {phase === "extracting" ? (
                 <>
-                  {progress < 40 && "Detectando estructura del documento…"}
+                  {progress < 40 && "Detectando la estructura de cada documento…"}
                   {progress >= 40 &&
                     progress < 80 &&
-                    "Extrayendo proveedor, ítems y totales…"}
-                  {progress >= 80 && "Finalizando extracción…"}
+                    "Leyendo proveedor, importador, productos, pesos y bultos…"}
+                  {progress >= 80 && "Cruzando los datos de los documentos…"}
                 </>
               ) : (
                 <>
@@ -250,21 +357,12 @@ export function FacturaFlow() {
               {Math.floor(progress)}%
             </div>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <RiCheckLine className="size-3 text-success" /> OCR completado
-              </span>
-              {progress > 30 ? (
-                <span className="inline-flex items-center gap-1">
-                  <RiCheckLine className="size-3 text-success" /> Tablas
-                  detectadas
+              {archivos.map((f) => (
+                <span key={f.name} className="inline-flex items-center gap-1">
+                  <RiFileTextLine className="size-3" />
+                  {f.name}
                 </span>
-              ) : null}
-              {progress > 60 ? (
-                <span className="inline-flex items-center gap-1">
-                  <RiCheckLine className="size-3 text-success" /> 4 ítems
-                  extraídos
-                </span>
-              ) : null}
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -326,35 +424,113 @@ function ProcessStepper({
   )
 }
 
-function PlaceholderImg({
-  label,
-  ratio = "3/4",
+
+/**
+ * Los campos obligatorios de la DIMS que se intentan sacar de los documentos.
+ * Los que quedan vacíos se muestran igual, para que el usuario sepa desde acá
+ * qué le va a faltar completar a mano.
+ */
+function camposDims(factura: Factura) {
+  const imp = factura.importador ?? {}
+  const log = factura.logistica ?? {}
+  const fmtKg = (v?: number) =>
+    v === undefined || v === null ? null : `${v.toLocaleString("es-BO")} kg`
+
+  return {
+    importador: [
+      ["A nombre de", imp.nombreRazonSocial ?? null],
+      ["NIT / documento", imp.numeroDocumento ?? null],
+      ["Domicilio", imp.domicilio ?? null],
+      ["Departamento de destino", imp.departamentoDestino ?? null],
+    ] as [string, string | null][],
+    carga: [
+      [
+        "Bultos",
+        log.cantidadBultos !== undefined ? String(log.cantidadBultos) : null,
+      ],
+      ["Peso bruto", fmtKg(log.pesoBrutoKg)],
+      ["Peso neto", fmtKg(log.pesoNetoKg)],
+      ["Nº de guía", log.manifiesto ?? null],
+      ["País de despacho", log.paisUltimaProcedencia ?? null],
+    ] as [string, string | null][],
+  }
+}
+
+function BloqueCampos({
+  titulo,
+  icon: Icon,
+  confianza,
+  campos,
 }: {
-  label: string
-  ratio?: string
+  titulo: string
+  icon: React.ComponentType<{ className?: string }>
+  confianza?: number
+  campos: [string, string | null][]
 }) {
   return (
-    <div
-      className="grid place-items-center rounded-md border border-dashed border-border bg-[repeating-linear-gradient(135deg,var(--surface-2)_0_10px,color-mix(in_oklch,var(--surface-2)_60%,var(--background))_10px_20px)] font-mono text-[11px] text-muted-foreground"
-      style={{ aspectRatio: ratio }}
-    >
-      {label}
-    </div>
+    <Card className="p-5">
+      <CardContent className="!p-0">
+        <div className="mb-2.5 flex items-center gap-2">
+          <Icon className="size-4 text-muted-foreground" />
+          <div className="text-[13px] font-semibold">{titulo}</div>
+          <Confidence value={confianza ?? 0} className="ml-auto" />
+        </div>
+        {campos.map(([k, v]) => (
+          <div
+            key={k}
+            className="flex justify-between gap-3 py-1 text-[12.5px]"
+          >
+            <span className="text-muted-foreground">{k}</span>
+            {v ? (
+              <span className="truncate text-right font-medium">{v}</span>
+            ) : (
+              <span className="shrink-0 text-right text-warning">
+                Aun por completar
+              </span>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
 function Review({ factura }: { factura: Factura }) {
+  const documentos = factura.documentos ?? []
+  const campos = camposDims(factura)
+  const faltantes = [...campos.importador, ...campos.carga].filter(
+    ([, v]) => !v
+  ).length
+
   return (
     <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,280px)_1fr]">
       <Card className="self-start p-4 lg:sticky lg:top-20">
         <CardContent className="!p-0">
           <div className="mb-2.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-            Documento original
+            Documentos cargados
           </div>
-          <PlaceholderImg label="factura.pdf · pág 1/2" ratio="3/4" />
-          <div className="mt-3 text-[11px] text-muted-foreground">
-            Calidad detectada: <strong className="text-success">Alta</strong> ·
-            Texto extraído al 96%
+          <VisorDocumentos facturaId={factura.id} documentos={documentos} />
+          <div className="mt-3 space-y-1.5">
+            {documentos.map((d) => (
+              <div
+                key={d.nombre}
+                className="flex items-start gap-1.5 text-[11px]"
+              >
+                {d.aporto ? (
+                  <RiCheckLine className="mt-0.5 size-3 shrink-0 text-success" />
+                ) : (
+                  <RiAlertLine className="mt-0.5 size-3 shrink-0 text-warning" />
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate">{d.nombre}</span>
+                  <span className="text-muted-foreground">
+                    {d.aporto
+                      ? DOC_TIPO_LABEL[d.tipo]
+                      : "No pudimos leer datos de este archivo"}
+                  </span>
+                </span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -363,10 +539,11 @@ function Review({ factura }: { factura: Factura }) {
         <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
           <RiCheckboxCircleFill className="size-5 text-success" />
           <div className="text-[15px] font-semibold">Datos extraídos</div>
-          <AIBadge title="Datos detectados por IA — revísalos en el siguiente paso" />
-          <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-            Confianza global:
-            <Confidence value={89} />
+          <AIBadge title="Datos detectados por IA — los revisás en el siguiente paso" />
+          <div className="ml-auto text-xs text-muted-foreground">
+            {faltantes === 0
+              ? "Sacamos todos los datos de la declaración"
+              : `${faltantes} ${faltantes === 1 ? "dato" : "datos"} no estaban en los documentos`}
           </div>
         </div>
 
@@ -451,11 +628,31 @@ function Review({ factura }: { factura: Factura }) {
           </Card>
         </div>
 
+        {/* Importador y carga: los campos obligatorios de la DIMS que antes
+            había que tipear a mano porque no se extraían de ningún documento. */}
+        <div className="mb-3.5 grid grid-cols-1 gap-3.5 md:grid-cols-2">
+          <BloqueCampos
+            titulo="Importador (a quién llega)"
+            icon={RiUser3Line}
+            confianza={factura.importador?.confidence}
+            campos={campos.importador}
+          />
+          <BloqueCampos
+            titulo="Carga y transporte"
+            icon={RiTruckLine}
+            confianza={factura.logistica?.confidence}
+            campos={campos.carga}
+          />
+        </div>
+
         <Card className="mb-4">
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <RiBox3Line className="size-4 text-muted-foreground" />
             <div className="text-[13px] font-semibold">
-              {factura.items.length} ítems detectados
+              {factura.items.length}{" "}
+              {factura.items.length === 1
+                ? "producto detectado"
+                : "productos detectados"}
             </div>
             <div className="ml-auto text-[11px] text-muted-foreground">
               {factura.items.filter((i) => i.confidence < 80).length} requieren

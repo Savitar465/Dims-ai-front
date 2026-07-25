@@ -39,7 +39,10 @@
       "Read(//d/SoftwareProjects/DIMS-AI/**)",
       "Bash(npx tsc *)",
       "PowerShell(Push-Location \"D:\\\\SoftwareProjects\\\\DIMS-AI\"; npx tsc --noEmit -p tsconfig.json; if \\($LASTEXITCODE -eq 0\\) { Write-Output \"TSC_OK\" } else { Write-Output \"TSC_FAIL exit=$LASTEXITCODE\" }; Pop-Location)",
-      "PowerShell(Push-Location \"D:\\\\SoftwareProjects\\\\DIMS-AI\"; npx tsc --noEmit -p tsconfig.json; $back = $LASTEXITCODE; Pop-Location; Push-Location \"D:\\\\SoftwareProjects\\\\Dims-ai-front\"; npx tsc --noEmit; $front = $LASTEXITCODE; Pop-Location; Write-Output \"backend=$back front=$front\")"
+      "PowerShell(Push-Location \"D:\\\\SoftwareProjects\\\\DIMS-AI\"; npx tsc --noEmit -p tsconfig.json; $back = $LASTEXITCODE; Pop-Location; Push-Location \"D:\\\\SoftwareProjects\\\\Dims-ai-front\"; npx tsc --noEmit; $front = $LASTEXITCODE; Pop-Location; Write-Output \"backend=$back front=$front\")",
+      "Bash(echo \"TSC=$?\")",
+      "Bash(npx eslint *)",
+      "mcp__webstorm__execute_sql_query"
     ]
   }
 }

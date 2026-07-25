@@ -130,6 +130,48 @@ export interface FacturaTotales {
   cif?: number
 }
 
+/** Consignatario extraído del documento. Alimenta el importador de la DIMS. */
+export interface FacturaImportador {
+  tipoDocumento?: string
+  numeroDocumento?: string
+  nombreRazonSocial?: string
+  domicilio?: string
+  departamentoDestino?: string
+  confidence?: Confidence
+}
+
+/** Datos de la carga: salen del packing list o de la guía, no de la factura. */
+export interface FacturaLogistica {
+  cantidadBultos?: number
+  pesoBrutoKg?: number
+  pesoNetoKg?: number
+  /** Nº de manifiesto / guía aérea (AWB) / carta de porte. */
+  manifiesto?: string
+  paisUltimaProcedencia?: string
+  /** 1 marítimo · 3 carretero · 4 aéreo · 5 postal o courier. */
+  medioTransporte?: string
+  confidence?: Confidence
+}
+
+export type FacturaDocumentoTipo =
+  | "factura"
+  | "packingList"
+  | "guiaTransporte"
+  | "otro"
+
+export interface FacturaDocumento {
+  /** Identificador dentro de la factura: con él se descarga el original. */
+  id?: string
+  nombre: string
+  mimeType: string
+  tipo: FacturaDocumentoTipo
+  /** false cuando la IA no pudo sacar nada útil de ese archivo. */
+  aporto: boolean
+  /** Presente cuando el archivo original quedó guardado y se puede mostrar. */
+  archivo?: string
+  tamanoBytes?: number
+}
+
 export interface Factura {
   id: string
   estado: FacturaEstado
@@ -137,12 +179,17 @@ export interface Factura {
   factura: FacturaCabecera
   items: FacturaItem[]
   totales: FacturaTotales
+  importador?: FacturaImportador
+  logistica?: FacturaLogistica
+  documentos?: FacturaDocumento[]
 }
 
 export interface FacturaUpdate {
   proveedor?: FacturaProveedor
   factura?: FacturaCabecera
   totales?: FacturaTotales
+  importador?: FacturaImportador
+  logistica?: FacturaLogistica
 }
 
 export interface FacturaItemUpdate {
@@ -216,23 +263,49 @@ export interface Dims {
   parteRecepcionSiNo?: boolean
   parteRecepcion?: string
   transporteHastaFrontera?: string
+  /** Nº de manifiesto de carga / guía de transporte. */
+  manifiesto?: string
   transaccion?: DimsTransaccion
   requiereInfAdicional?: boolean
   infAdicional?: string
+  /** Códigos de los documentos soporte que se van a adjuntar (CM-003, OT-001…). */
+  documentosSoporte?: string[]
   items?: FacturaItem[]
+  /** Origen de cada campo del formulario: qué revisó una persona y qué no. */
+  origenes?: Record<string, string>
+  /** Confianza de la extracción por campo (0–100), con las claves de `origenes`. */
+  confianzas?: Record<string, number>
   liquidacion?: Liquidacion
   validacion?: ValidationResult
   creadaEn?: string
   actualizadaEn?: string
 }
 
+/**
+ * Todo lo que el formulario puede modificar. Antes solo declaraba cinco campos
+ * y el resto del borrador no tenía forma de llegar al backend.
+ */
 export interface DimsUpdate {
   proveedor?: string
   nit?: string
   aduanaIngreso?: string
   regimen?: string
   modalidad?: string
+  tipoUsuario?: TipoUsuarioDims
+  importador?: DimsImportador
+  departamentoDestino?: string
+  paisUltimaProcedencia?: string
+  parteRecepcionSiNo?: boolean
+  parteRecepcion?: string
+  transporteHastaFrontera?: string
+  manifiesto?: string
+  transaccion?: DimsTransaccion
+  requiereInfAdicional?: boolean
+  infAdicional?: string
+  documentosSoporte?: string[]
   items?: FacturaItem[]
+  origenes?: Record<string, string>
+  confianzas?: Record<string, number>
 }
 
 export interface CreateDimsInput {
