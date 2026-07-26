@@ -10,9 +10,15 @@ export const API_BASE_URL = (
 export class ApiError extends Error {
   status: number
   code?: string
-  details?: string[]
+  /**
+   * Contenido variable según el `code`: los errores de validación mandan un
+   * `string[]`, y `extraccion_fallida` manda un objeto con el detalle por
+   * documento. Se deja sin tipar acá y se estrecha en quien conoce el código
+   * (ver `esExtraccionFallida` en lib/services/facturas.ts).
+   */
+  details?: unknown
 
-  constructor(status: number, message: string, code?: string, details?: string[]) {
+  constructor(status: number, message: string, code?: string, details?: unknown) {
     super(message)
     this.name = "ApiError"
     this.status = status

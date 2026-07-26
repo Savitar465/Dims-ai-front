@@ -178,6 +178,28 @@ export type FacturaDocumentoTipo =
   | "guiaTransporte"
   | "otro"
 
+/**
+ * Por qué la IA no pudo leer un documento. Cada código tiene una salida
+ * distinta para el usuario, así que la UI los distingue en vez de mostrar un
+ * "no se pudo procesar" que no dice qué hacer.
+ */
+export type ExtraccionErrorCodigo =
+  /** PDF escaneado sin capa de texto, o archivo vacío. */
+  | "documento_ilegible"
+  /** La IA no respondió: red, cuota agotada, bloqueo. Se reintenta. */
+  | "ia_sin_respuesta"
+  /** Respondió, pero no se pudo interpretar. Se reintenta. */
+  | "respuesta_ilegible"
+  /** Lo leyó, pero no era un documento de importación. */
+  | "sin_datos"
+  | "error_interno"
+
+export interface ExtraccionErrorDocumento {
+  codigo: ExtraccionErrorCodigo | string
+  /** Ya redactado en español para el usuario final. */
+  mensaje: string
+}
+
 export interface FacturaDocumento {
   /** Identificador dentro de la factura: con él se descarga el original. */
   id?: string
@@ -186,6 +208,12 @@ export interface FacturaDocumento {
   tipo: FacturaDocumentoTipo
   /** false cuando la IA no pudo sacar nada útil de ese archivo. */
   aporto: boolean
+  /**
+   * Por qué no aportó, cuando `aporto` es false. El `mensaje` ya viene redactado
+   * para mostrarlo tal cual; el `codigo` sirve para decidir qué ofrecer (volver
+   * a subir como imagen, reintentar, cambiar el archivo).
+   */
+  error?: ExtraccionErrorDocumento
   /** Presente cuando el archivo original quedó guardado y se puede mostrar. */
   archivo?: string
   tamanoBytes?: number

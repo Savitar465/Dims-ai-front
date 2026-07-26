@@ -1,5 +1,6 @@
-import { API_BASE_URL, apiFetch } from "@/lib/api/client"
+import { API_BASE_URL, ApiError, apiFetch } from "@/lib/api/client"
 import type {
+  ExtraccionErrorCodigo,
   Factura,
   FacturaDocumento,
   FacturaItem,
@@ -35,6 +36,48 @@ export function uploadFactura(archivos: File | File[]): Promise<Factura> {
   const form = new FormData()
   for (const archivo of lista) form.append("archivos", archivo)
   return apiFetch<Factura>("/facturas", { method: "POST", rawBody: form })
+}
+
+/** Un documento que no se pudo leer, tal como lo detalla el 422 del upload. */
+export interface DocumentoNoLeido {
+  id?: string
+  nombre: string
+  codigo: ExtraccionErrorCodigo | string
+  mensaje: string
+}
+
+export interface ExtraccionFallida {
+  /** Mensaje general, ya redactado por el backend. */
+  mensaje: string
+  /**
+   * La factura quedó guardada con sus archivos aunque no se haya podido leer
+   * nada: con este id se puede mostrar el original y reintentar sobre ella.
+   */
+  facturaId: string
+  documentos: DocumentoNoLeido[]
+}
+
+/**
+ * ¿El fallo es "no pudimos leer los documentos" y no un error de red o del
+ * servidor? El backend lo devuelve como 422 `extraccion_fallida` con el motivo
+ * de cada archivo; distinguirlo importa porque acá el usuario sí puede hacer
+ * algo (subir otra versión, reintentar), y merece que se lo digamos.
+ */
+export function esExtraccionFallida(e: unknown): ExtraccionFallida | null {
+  if (!(e instanceof ApiError) || e.code !== "extraccion_fallida") return null
+  const d = e.details as
+    | { facturaId?: unknown; documentos?: unknown }
+    | undefined
+  const documentos = Array.isArray(d?.documentos)
+    ? (d.documentos as DocumentoNoLeido[]).filter(
+        (doc) => doc && typeof doc.mensaje === "string"
+      )
+    : []
+  return {
+    mensaje: e.message,
+    facturaId: typeof d?.facturaId === "string" ? d.facturaId : "",
+    documentos,
+  }
 }
 
 export function getFactura(facturaId: string): Promise<Factura> {

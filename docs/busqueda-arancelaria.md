@@ -85,6 +85,8 @@ la clasificación con IA corre sin que nadie la pida.**
 
 ```
 uploadFactura(archivos)
+  ↓  422 extraccion_fallida → aborta y vuelve al paso de carga
+  ↓     mostrando el motivo de cada documento (esExtraccionFallida)
   ↓  polling de getFactura mientras estado === "procesando"
   ↓  (hasta 20 intentos cada 800 ms ≈ 16 s)
   ↓  si estado === "error" → aborta y vuelve al paso de carga

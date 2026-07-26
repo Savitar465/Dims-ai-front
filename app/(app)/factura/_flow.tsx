@@ -11,6 +11,7 @@ import {
   RiCheckboxCircleFill,
   RiCheckLine,
   RiCloseLine,
+  RiErrorWarningLine,
   RiFileTextLine,
   RiImage2Line,
   RiInformationLine,
@@ -31,8 +32,10 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import {
   clasificarSubpartidas,
+  esExtraccionFallida,
   getFactura,
   uploadFactura,
+  type DocumentoNoLeido,
 } from "@/lib/services/facturas"
 import type { Factura } from "@/lib/types/dims"
 import {
@@ -46,6 +49,19 @@ type Phase = "extracting" | "classifying"
 
 const MAX_ARCHIVOS = 5
 
+/**
+ * Lo que se le muestra al usuario cuando la carga falla. `documentos` viene del
+ * 422 del backend y dice qué archivo falló y por qué: sin eso, con tres
+ * documentos cargados el usuario no sabe cuál tiene que volver a subir.
+ */
+interface ErrorCarga {
+  mensaje: string
+  documentos: DocumentoNoLeido[]
+}
+
+/** Códigos donde el mismo archivo puede funcionar en un segundo intento. */
+const CODIGOS_REINTENTABLES = ["ia_sin_respuesta", "respuesta_ilegible"]
+
 export function FacturaFlow() {
   const [step, setStep] = React.useState<Step>("upload")
   const [phase, setPhase] = React.useState<Phase>("extracting")
@@ -53,7 +69,7 @@ export function FacturaFlow() {
   const [dragOver, setDragOver] = React.useState(false)
   const [archivos, setArchivos] = React.useState<File[]>([])
   const [factura, setFactura] = React.useState<Factura | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<ErrorCarga | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   // Animate the progress bar while a phase is in flight; the jump to 100%
@@ -97,10 +113,27 @@ export function FacturaFlow() {
         result = await getFactura(result.id)
         tries++
       }
+      // El upload que no pudo leer nada responde 422 y cae en el catch. Este
+      // caso queda para la extracción diferida: el POST devolvió "procesando"
+      // y el fallo recién se ve al consultar la factura, sin motivo por
+      // documento porque ese detalle solo viaja en el error del upload.
       if (result.estado === "error") {
-        throw new Error(
-          "No pudimos leer los documentos. Probá con una foto más nítida o con el PDF original."
-        )
+        setError({
+          mensaje:
+            "No pudimos leer los documentos. Probá con una foto más nítida o con el PDF original.",
+          documentos: (result.documentos ?? [])
+            .filter((d) => !d.aporto)
+            .map((d) => ({
+              nombre: d.nombre,
+              codigo: d.error?.codigo ?? "sin_datos",
+              mensaje:
+                d.error?.mensaje ??
+                "La IA no reconoció datos aprovechables en este documento.",
+            })),
+        })
+        setStep("upload")
+        setProgress(0)
+        return
       }
 
       setPhase("classifying")
@@ -111,8 +144,18 @@ export function FacturaFlow() {
       setProgress(100)
       setStep("review")
     } catch (e) {
+      // El backend ya redacta el motivo de cada archivo: mostrarlo tal cual es
+      // mucho más útil que el genérico de antes, que le pedía una foto más
+      // nítida incluso cuando el problema era que la IA estaba sin cuota.
+      const fallida = esExtraccionFallida(e)
       setError(
-        e instanceof Error ? e.message : "No se pudo procesar la factura."
+        fallida
+          ? { mensaje: fallida.mensaje, documentos: fallida.documentos }
+          : {
+              mensaje:
+                e instanceof Error ? e.message : "No se pudo procesar la factura.",
+              documentos: [],
+            }
       )
       setStep("upload")
       setProgress(0)
@@ -220,9 +263,46 @@ export function FacturaFlow() {
             ) : null}
 
             {error ? (
-              <div className="mt-3 text-sm font-medium text-destructive">
-                {error}
-              </div>
+              <Card className="mt-3 border-destructive/40 bg-destructive-soft p-3">
+                <CardContent className="!p-0">
+                  <div className="flex gap-2.5">
+                    <RiErrorWarningLine className="mt-px size-4 shrink-0 text-destructive" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-destructive">
+                        {error.mensaje}
+                      </p>
+                      {error.documentos.length > 0 ? (
+                        <ul className="mt-2 space-y-1.5">
+                          {error.documentos.map((d, i) => (
+                            <li
+                              key={`${d.nombre}:${i}`}
+                              className="text-[13px] text-muted-foreground"
+                            >
+                              <span className="font-medium text-foreground">
+                                {d.nombre}
+                              </span>
+                              {" — "}
+                              {d.mensaje}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {error.documentos.some((d) =>
+                        CODIGOS_REINTENTABLES.includes(d.codigo)
+                      ) ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3"
+                          onClick={procesar}
+                        >
+                          Reintentar
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             ) : null}
 
             <Button
