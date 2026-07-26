@@ -66,11 +66,30 @@ export interface Linea {
 export interface Subpartida {
   code: string
   desc: string
-  linea: LineaId
+  /**
+   * Categoría del seed de demo. El Arancel 2026 no tiene un campo equivalente,
+   * así que llega `null` para los códigos del arancel real.
+   */
+  linea: LineaId | null
   arancel: number
   iva: number
   ice: number
   gravamen: string
+
+  // ── Arancel 2026 ─────────────────────────────────────────────────────────
+  /** Ruta jerárquica completa: "Café... > Café tostado: > Molido". */
+  ruta?: string
+  /** Texto legal propio de la hoja; suele ser residual ("Los demás"). */
+  descHoja?: string
+  capitulo?: string
+  descCapitulo?: string
+  seccion?: string
+  /** Unidad de medida declarable (kg, u, l...). */
+  unidad?: string
+  /** Descripciones mínimas que exige aduana para esta subpartida. */
+  descripcionesMinimas?: string
+  /** Presente solo si la mercancía está prohibida de importación. */
+  prohibida?: string
 }
 
 export interface SubpartidaMatch extends Subpartida {
@@ -198,6 +217,13 @@ export interface FacturaItemUpdate {
   unidad?: string
   precioUnit?: number
   subpartida?: string | null
+  /**
+   * Mandalo solo cuando la persona eligió el código a mano. El backend usa
+   * esta marca para aprender la clasificación; el autoguardado NO debe
+   * mandarla, porque reenvía la subpartida de todos los ítems y registraría
+   * como confirmadas las sugerencias que nadie revisó.
+   */
+  subpartidaConfirmada?: boolean
 }
 
 // ── DIMS ─────────────────────────────────────────────────────────────────────

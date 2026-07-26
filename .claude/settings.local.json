@@ -42,7 +42,9 @@
       "PowerShell(Push-Location \"D:\\\\SoftwareProjects\\\\DIMS-AI\"; npx tsc --noEmit -p tsconfig.json; $back = $LASTEXITCODE; Pop-Location; Push-Location \"D:\\\\SoftwareProjects\\\\Dims-ai-front\"; npx tsc --noEmit; $front = $LASTEXITCODE; Pop-Location; Write-Output \"backend=$back front=$front\")",
       "Bash(echo \"TSC=$?\")",
       "Bash(npx eslint *)",
-      "mcp__webstorm__execute_sql_query"
+      "mcp__webstorm__execute_sql_query",
+      "Read(//c/Users/jonas/AppData/Local/Temp/claude/D--SoftwareProjects-Dims-ai-front/88ae1b85-6659-4ca9-997c-700c8ac3cc6c/tasks/**)",
+      "Bash(break)"
     ]
   }
 }

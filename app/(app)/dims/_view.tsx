@@ -397,7 +397,12 @@ export function DimsView({
       )
       if (!facturaId) return true
       try {
-        await updateFacturaItem(facturaId, itemId, { subpartida: codigo })
+        // Elección explícita de una persona: se marca para que el backend la
+        // aprenda. El autoguardado de la pantalla de edición no lleva la marca.
+        await updateFacturaItem(facturaId, itemId, {
+          subpartida: codigo,
+          subpartidaConfirmada: true,
+        })
         return true
       } catch {
         // Sin esto la fila quedaría mostrando un código que el servidor nunca
